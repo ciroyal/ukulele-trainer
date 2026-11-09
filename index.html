@@ -12,9 +12,23 @@ body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-appl
 #root{max-width:480px;margin:0 auto;padding:16px 16px 40px}
 h1{font-size:22px;font-weight:500;margin:0}
 .sub{color:var(--muted);font-size:14px;margin:0 0 12px}
-.tabs{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin:0 0 12px}
+.tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:0 0 12px}
 button,select{font:inherit;color:var(--text)}
-.tab{padding:8px 4px;border:0.5px solid var(--line);background:var(--card);border-radius:8px;font-size:14px;cursor:pointer}
+.tab{padding:8px 2px;border:0.5px solid var(--line);background:var(--card);border-radius:8px;font-size:13px;cursor:pointer}
+.tstrs{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 0 12px}
+.tstrs .btn{padding:10px 0}
+.btn.on{background:var(--accentbg);border-color:var(--accent);color:var(--accentText);font-weight:500}
+.btn.det{border-color:var(--accent)}
+.tn-note{font-size:64px;font-weight:500;text-align:center;line-height:1.1;margin:6px 0 0}
+.tn-hz{text-align:center;font-size:14px;color:var(--muted);min-height:21px}
+.tmeter{position:relative;height:16px;border-radius:8px;background:var(--line);margin:20px 0 6px}
+.tmeter .zone{position:absolute;left:45%;width:10%;top:0;bottom:0;background:var(--okbg);border:1px solid var(--ok);box-sizing:border-box;border-radius:3px}
+.tmeter span{position:absolute;left:50%;top:-4px;width:2px;height:24px;background:var(--muted)}
+.tmeter i{position:absolute;top:-4px;left:50%;width:12px;height:24px;margin-left:-6px;border-radius:4px;background:var(--accent);z-index:2;transition:left .12s}
+.tmeter i.good{background:var(--ok)}
+.tlab{display:flex;justify-content:space-between;font-size:12px;color:var(--muted)}
+.tn-msg{text-align:center;font-size:16px;min-height:24px;margin:10px 0 0}
+.tn-msg.ok{color:var(--ok);font-weight:500}
 .tab.on{background:var(--accentbg);border-color:var(--accent);color:var(--accentText);font-weight:500}
 .ctl{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 12px;font-size:14px;color:var(--muted)}
 .ctl label{display:flex;align-items:center;gap:6px}
@@ -68,7 +82,7 @@ var stats={total:0,correct:0,best:0,notes:{}};
 try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.notes)stats=p;}}catch(e){}
 function save(){try{localStorage.setItem(KEY,JSON.stringify(stats));}catch(e){}}
 
-var state={mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,mic:{on:false,err:'',stable:0,cool:0}};
+var state={mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,tuneSel:'auto',mic:{on:false,err:'',stable:0,cool:0}};
 var micH={stream:null,ctx:null,an:null,buf:null,timer:null};
 
 function detect(buf,sr){
@@ -95,6 +109,56 @@ function detect(buf,sr){
     }
   }
   return null;
+}
+
+var TN={hist:[],last:0,ok:0};
+function tnEl(id){return document.getElementById(id);}
+function tnActive(idx){
+  var bs=document.querySelectorAll('[data-act="tstr"]');
+  for(var i=0;i<bs.length;i++){
+    var v=bs[i].getAttribute('data-v');
+    if(idx!==null&&v===String(idx))bs[i].classList.add('det');else bs[i].classList.remove('det');
+  }
+}
+function tickTuner(f){
+  var note=tnEl('tn-note');
+  if(!note)return;
+  var now=Date.now();
+  if(!f){
+    if(now-TN.last>700){
+      TN.hist=[];TN.ok=0;
+      note.textContent='–';
+      tnEl('tn-hz').textContent='Zupfe eine leere Saite';
+      tnEl('tn-msg').textContent='';tnEl('tn-msg').className='tn-msg';
+      tnEl('tn-mk').style.left='50%';tnEl('tn-mk').className='';
+      tnActive(null);
+    }
+    return;
+  }
+  TN.last=now;TN.hist.push(f);
+  if(TN.hist.length>5)TN.hist.shift();
+  var s=TN.hist.slice().sort(function(a,b){return a-b;}),fm=s[Math.floor(s.length/2)];
+  var idx,i;
+  if(state.tuneSel==='auto'){
+    var bd=1e9;idx=0;
+    for(i=0;i<4;i++){var d=Math.abs(1200*Math.log2(fm/STR[i].f));if(d<bd){bd=d;idx=i;}}
+  }else idx=+state.tuneSel;
+  var cents=1200*Math.log2(fm/STR[idx].f);
+  note.textContent=STR[idx].n;
+  tnEl('tn-hz').textContent=fm.toFixed(1)+' Hz · Ziel '+STR[idx].f.toFixed(1)+' Hz';
+  var c=Math.round(cents),clamp=Math.max(-50,Math.min(50,cents));
+  var mk=tnEl('tn-mk');
+  mk.style.left=(50+clamp)+'%';
+  var good=Math.abs(cents)<=5;
+  TN.ok=good?TN.ok+1:0;
+  mk.className=good?'good':'';
+  var msg,cls='tn-msg';
+  if(Math.abs(cents)>300)msg='Zu weit entfernt. Prüfe, ob du die richtige Saite zupfst.';
+  else if(good){if(TN.ok>=3){msg='Gestimmt!';cls+=' ok';}else msg='Fast…';}
+  else if(cents<0)msg='Zu tief ('+c+' ct): Saite etwas spannen';
+  else msg='Zu hoch (+'+c+' ct): Saite etwas lockern';
+  var m=tnEl('tn-msg');m.textContent=msg;m.className=cls;
+  tnActive(idx);
 }
 
 function stopMic(){
@@ -135,6 +199,7 @@ function micTick(){
   if(!micH.an)return;
   micH.an.getFloatTimeDomainData(micH.buf);
   var f=detect(micH.buf,micH.ctx.sampleRate);
+  if(state.mode==='tune'){tickTuner(f);return;}
   var liveEl=document.getElementById('live'),mk=document.getElementById('mk');
   if(!f){m.stable=0;if(liveEl)liveEl.textContent='–';return;}
   var mf=69+12*Math.log2(f/440),mi=Math.round(mf),cents=Math.round((mf-mi)*100);
@@ -295,6 +360,22 @@ function viewName(){
   return controls()+score()+'<div class="card"><p class="prompt">Welcher Ton? '+STR[q.s].n+'-Saite, '+where+'</p>'+(fb||'<p class="fb">&nbsp;</p>')+btn+'</div>'+a+fretboard(dots,null);
 }
 
+function viewTune(){
+  var mic=state.mic,sel=state.tuneSel;
+  var o='<div class="card"><p class="prompt">Stimmgerät</p><p class="hint" style="margin:4px 0 0">Standard-Stimmung G–C–E–A (High-G). Zupfe eine leere Saite und stimme, bis der Balken in der grünen Mitte steht.</p></div>';
+  o+='<div class="tstrs">';
+  [['auto','Auto'],['0','G'],['1','C'],['2','E'],['3','A']].forEach(function(b){
+    o+='<button class="btn'+(sel===b[0]?' on':'')+'" data-act="tstr" data-v="'+b[0]+'">'+b[1]+'</button>';
+  });
+  o+='</div>';
+  if(!mic.on)o+='<p class="hint" style="margin:-4px 0 12px">Tippe auf eine Saite, um ihren Zielton zu hören. Bei „Auto“ erkennt die App die Saite selbst.</p>';
+  o+='<div class="ctl"><button class="btn'+(mic.on?'':' pri')+'" data-act="mic">'+(mic.on?'Stimmgerät stoppen':'Stimmgerät starten')+'</button></div>';
+  if(mic.err)o+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
+  o+='<div class="card"><div id="tn-note" class="tn-note">–</div><div id="tn-hz" class="tn-hz">'+(mic.on?'Zupfe eine leere Saite':'Mikrofon ist aus')+'</div>';
+  o+='<div class="tmeter"><b class="zone"></b><span></span><i id="tn-mk"></i></div><div class="tlab"><span>zu tief</span><span>zu hoch</span></div><p id="tn-msg" class="tn-msg"></p></div>';
+  return o;
+}
+
 function viewStats(){
   var o='<div class="big"><div><small>Richtig gesamt</small><strong>'+stats.correct+' / '+stats.total+'</strong></div><div><small>Beste Serie</small><strong>'+stats.best+'</strong></div></div>';
   o+='<div class="card"><p class="prompt" style="font-size:17px">Trefferquote pro Ton</p>';
@@ -313,11 +394,11 @@ function viewStats(){
 }
 
 function render(){
-  var tabs=[['map','Karte'],['find','Finden'],['name','Erkennen'],['stats','Statistik']];
+  var tabs=[['map','Karte'],['find','Finden'],['name','Erkennen'],['tune','Stimmen'],['stats','Statistik']];
   var o='<h1>Ukulele-Trainer</h1><p class="sub">Griffbrett lernen · GCEA</p><div class="tabs">';
   tabs.forEach(function(t){o+='<button class="tab'+(state.mode===t[0]?' on':'')+'" data-act="tab" data-v="'+t[0]+'">'+t[1]+'</button>';});
   o+='</div>';
-  o+=state.mode==='map'?viewMap():state.mode==='find'?viewFind():state.mode==='name'?viewName():viewStats();
+  o+=state.mode==='map'?viewMap():state.mode==='find'?viewFind():state.mode==='name'?viewName():state.mode==='tune'?viewTune():viewStats();
   document.getElementById('root').innerHTML=o;
 }
 
@@ -327,6 +408,12 @@ function handle(el){
   var act=el.getAttribute('data-act');
   if(act==='tab'){if(state.mic.on)stopMic();state.mode=el.getAttribute('data-v');state.q=null;state.resetArmed=false;render();}
   else if(act==='next'){next();}
+  else if(act==='tstr'){
+    var tv=el.getAttribute('data-v');
+    state.tuneSel=tv;
+    if(tv!=='auto'&&!state.mic.on)play(+tv,0);
+    render();
+  }
   else if(act==='mic'){if(state.mic.on){stopMic();render();}else startMic();}
   else if(act==='skip'){
     var sq=state.q;
