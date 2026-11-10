@@ -203,7 +203,7 @@ try:
         pg.click('[data-act="settings"]')
         check('Einstellungen zeigen beide Instrumente', pg.locator('[data-act="inst"]').count() == 2)
         pg.click('[data-act="inst"][data-v="gtr"]')
-        check('Auswahl schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0 and pg.evaluate("state.inst")=='gtr' and 'Gitarre' in pg.inner_text('.sub'))
+        check('Auswahl schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0 and pg.evaluate("state.inst")=='gtr' and pg.inner_text('h1') == 'Gitarre' and 'Griffbrett-Trainer' not in pg.inner_text('#root'))
         pg.click('[data-act="settings"]'); pg.click('[data-act="grp"][data-v="notes"]')
         check('Seitenwechsel schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0)
         b.close()

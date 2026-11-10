@@ -1009,7 +1009,7 @@ function render(){
   var g=groupOf(state.mode);
   // Kopfzeile: Titel links, Einstellungen (Instrument wählen) oben rechts
   var fork='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8a4 4 0 0 0 8 0V3"/><path d="M12 15v6"/></svg>';
-  var o='<div class="head"><h1>Griffbrett-Trainer</h1><div class="tools">'+
+  var o='<div class="head"><h1>'+INSTR[state.inst].name+'</h1><div class="tools">'+
     '<button class="ibtn fork'+(state.mode==='tune'?' on':'')+'" data-act="grp" data-v="tune" aria-label="Stimmgerät" title="Stimmgerät">'+fork+'</button>'+
     '<button class="ibtn gear'+(state.settings?' on':'')+'" data-act="settings" aria-label="Einstellungen" aria-expanded="'+(state.settings?'true':'false')+'">⚙</button></div></div>';
   if(state.settings){
@@ -1018,7 +1018,7 @@ function render(){
     o+='</div></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
-  o+='<p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
+  o+='<p class="sub">Stimmung '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
   shown.forEach(function(x){o+='<button class="tab'+(x===g?' on':'')+'" data-act="grp" data-v="'+x.id+'">'+x.name+'</button>';});
   o+='</div>';
   var base=g.modes.filter(function(m){return !m[2];}),ex=g.modes.filter(function(m){return m[2];});
