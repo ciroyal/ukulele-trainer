@@ -83,6 +83,19 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 .mute circle{fill:transparent;stroke:transparent}
 .dot.mute text{fill:var(--muted);font-size:20px}
 .row.wide{grid-template-columns:120px 1fr 64px}
+
+.deglist{display:grid;gap:6px;margin:0 0 12px}
+.btn.deg{display:grid;grid-template-columns:44px 56px 1fr;gap:8px;text-align:left;padding:9px 12px}
+.btn.deg span:last-child{color:var(--muted)}
+.btn.deg.on span:last-child{color:inherit}
+.stage .bar{margin:10px 0 6px}
+.stage h2{font-size:17px;font-weight:500;margin:0}
+.stage .links{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.stage .links .btn{padding:8px 12px;font-size:14px}
+.stage.next{border-color:var(--accent)}
+.badge{display:inline-block;font-size:12px;color:var(--accentText);background:var(--accentbg);border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:2px}
+.btn:disabled{opacity:.45;cursor:default}
+.tabs.top .tab{font-size:11px;padding:8px 1px}
 </style>
 </head>
 <body>
@@ -145,7 +158,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={inst:'uke',mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={inst:'uke',mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -456,15 +469,47 @@ function chordsInKey(){
   }).sort(function(a,b){return ((cs[a].r-state.kRoot+12)%12)-((cs[b].r-state.kRoot+12)%12)||a-b;}); // nach Stufe: I, ii, iii ...
   return {all:all,inKey:inKey.length>=2?inKey:all,strict:inKey.length>=2,exact:inKey};
 }
-function keySelects(){
-  var o='<div class="sel"><span>Tonart:</span><label><select data-act="kroot"><option value="-1">Alle Akkorde</option>';
-  NOTES.forEach(function(n,i){o+='<option value="'+i+'"'+(state.kRoot===i?' selected':'')+'>'+n+'</option>';});
+// kind: ohne = Filter für Akkorde ('Alle Akkorde'), 'rand' = Übung mit zufälliger Tonart, 'fixed' = immer eine Tonart
+function keySelects(kind){
+  var first=kind==='rand'?'Zufällige Tonart':'Alle Akkorde',cur=kind==='fixed'&&state.kRoot<0?0:state.kRoot;
+  var o='<div class="sel"><span>Tonart:</span><label><select data-act="kroot">'+(kind==='fixed'?'':'<option value="-1">'+first+'</option>');
+  NOTES.forEach(function(n,i){o+='<option value="'+i+'"'+(cur===i?' selected':'')+'>'+n+'</option>';});
   o+='</select></label><label><select data-act="ktype">';
   [0,1].forEach(function(i){o+='<option value="'+i+'"'+(state.kType===i?' selected':'')+'>'+SCALES[i].name+'</option>';});
   o+='</select></label></div>';
+  if(kind)return o;
   var g=chordsInKey();
   if(state.kRoot>=0&&!g.strict)o+='<p class="hint" style="margin:-4px 0 10px">Zu '+scaleName(state.kRoot,SCALES[state.kType])+' gibt es hier weniger als 2 Griffe, daher sind alle Akkorde dabei.</p>';
   return o;
+}
+// ----- Stufenakkorde: Akkorde aus einer Tonleiter bauen -----
+var ROMAN=['I','II','III','IV','V','VI','VII'];
+// Dreiklang auf Stufe d (0-6) der Dur- (type 0) oder Moll-Tonleiter (type 1): die Töne 1, 3 und 5 ab dieser Stufe, also jeder zweite Ton
+function triadAt(root,type,d){
+  var s=scaleNotes(root,SCALES[type]),r=s[d],t=s[(d+2)%7],f=s[(d+4)%7];
+  var a=(t-r+12)%12,b=(f-r+12)%12,q=a===4&&b===7?'':(a===3&&b===7?'m':(a===3&&b===6?'dim':'aug'));
+  var rn=ROMAN[d];
+  if(q==='m'||q==='dim')rn=rn.toLowerCase();
+  if(q==='dim')rn+='°';
+  if(q==='aug')rn+='+';
+  return {d:d,r:r,q:q,notes:[r,t,f],roman:rn,name:NOTES[r]+(q==='m'?'m':(q==='dim'?'°':(q==='aug'?'+':'')))};
+}
+// Index des Griffs für Grundton r und Art q ('' oder 'm') in der Akkordliste, -1 wenn es keinen gibt (z. B. vermindert)
+function chordIndexOf(r,q){
+  var cs=INSTR[state.inst].chords;
+  for(var k=0;k<cs.length;k++)if(cs[k].r===r&&cs[k].q===q)return k;
+  return -1;
+}
+function degKey(type,tri){return (type===0?'Dur ':'Moll ')+tri.roman;}
+function noteName(n){return NOTES[n];}
+// kind: 'build' (Akkord aus Tönen bauen) oder 'step' (Stufe erkennen)
+function newDegreeQ(kind){
+  var type=state.kType,root=state.kRoot>=0?state.kRoot:Math.floor(Math.random()*12);
+  var d=weighted([0,1,2,3,4,5,6],'degrees',function(i){return degKey(type,triadAt(root,type,i));});
+  var q={kind:kind,root:root,t:type,d:d,tri:triadAt(root,type,d),done:false,ok:false,picked:null,id:Date.now()};
+  if(kind==='build')q.sel=[];
+  else q.form=Math.random()<0.5?0:1; // 0: Stufe zum Akkord, 1: Akkord zur Stufe
+  state.q=q;
 }
 function newChordQ(){
   var cs=INSTR[state.inst].chords;
@@ -497,6 +542,8 @@ function newForMode(){
   else if(m==='sfind')newScaleQ('find');
   else if(m==='sname')newScaleQ('name');
   else if(m==='splay')newScaleQ('play');
+  else if(m==='cbuild')newDegreeQ('build');
+  else if(m==='cstep')newDegreeQ('step');
   else newQ();
 }
 // Zählt eine Antwort. bucket = Statistik-Gruppe ('notes', 'chords' oder 'scales'), key = Ton, Akkordname oder Tonleiter-Art.
@@ -642,6 +689,7 @@ function viewStats(){
   var notes=statCard('Trefferquote pro Ton','notes',function(k){return NOTES[k];});
   o+=notes||'<div class="card"><p class="prompt" style="font-size:17px">Trefferquote pro Ton</p><p class="hint" style="margin:8px 0 0">Noch keine Antworten. Starte ein Quiz.</p></div>';
   o+=statCard('Trefferquote pro Akkord','chords',function(k){return k;});
+  o+=statCard('Trefferquote pro Stufe','degrees',function(k){return k;},true);
   o+=statCard('Trefferquote pro Tonleiter','scales',function(k){return SCALES.filter(function(s){return s.id===k;})[0].name;},true);
   o+='<p class="hint">Schwache Aufgaben kommen im Quiz häufiger dran. Der Fortschritt wird nur in diesem Browser gespeichert.</p>';
   o+='<p><button class="btn" data-act="reset">'+(state.resetArmed?'Wirklich alles löschen?':'Statistik zurücksetzen')+'</button></p>';
@@ -743,6 +791,101 @@ function viewChordPlay(){
   return m+keySelects()+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,chordFrets(c));
 }
 
+function viewChordDeg(){
+  var root=state.kRoot<0?0:state.kRoot,type=state.kType,sc=SCALES[type],set=scaleNotes(root,sc);
+  var d=Math.min(state.dSel,6),tri=[0,1,2,3,4,5,6].map(function(i){return triadAt(root,type,i);}),t=tri[d];
+  var o=keySelects('fixed');
+  o+='<div class="card"><p class="prompt">'+scaleName(root,sc)+'</p><p class="hint" style="margin:4px 0 0">Tonleiter: '+set.map(noteName).join(' ')+'</p>'+
+     '<p class="hint" style="margin:4px 0 0">Stapelst du auf jeder Stufe jeden zweiten Ton der Tonleiter übereinander (1., 3., 5. Ton ab der Stufe), ergibt das den Akkord dieser Stufe.</p></div><div class="deglist">';
+  tri.forEach(function(x,i){
+    o+='<button class="btn deg'+(i===d?' on':'')+'" data-act="dsel" data-v="'+i+'"><b>'+x.roman+'</b><span>'+x.name+'</span><span>'+x.notes.map(noteName).join(' ')+'</span></button>';
+  });
+  o+='</div>';
+  var k=(t.q==='dim'||t.q==='aug')?-1:chordIndexOf(t.r,t.q);
+  o+='<div class="card"><p class="prompt">'+t.roman+': '+t.name+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+t.notes.map(noteName).join(' ')+' (Stufen '+(d+1)+', '+((d+2)%7+1)+', '+((d+4)%7+1)+')</p>';
+  if(k>=0){state.cSel=k;o+='<button class="btn" data-act="strum">Anschlagen</button></div>'+fretboard(chordDots(INSTR[state.inst].chords[k],true),null,chordFrets(INSTR[state.inst].chords[k]));}
+  else o+='<p class="hint" style="margin:0">Dieser Akkord ist vermindert. Dafür gibt es hier noch keinen Griff.</p></div>';
+  return o;
+}
+function viewChordBuild(){
+  if(!state.q)newDegreeQ('build');
+  var q=state.q,tri=q.tri,sc=SCALES[q.t],set=scaleNotes(q.root,sc),fb='',btn='';
+  var seq='<div class="seq">'+set.map(function(n,i){return '<span>'+(i+1)+' · '+NOTES[n]+'</span>';}).join('')+'</div>';
+  if(q.done){
+    if(q.ok)fb='<p class="fb ok">Richtig! '+tri.notes.map(noteName).join(' ')+' = '+tri.name+'</p>';
+    else{fb='<p class="fb bad">Richtig wäre: '+tri.notes.map(noteName).join(' ')+' = '+tri.name+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }else{
+    fb='<p class="hint" style="margin:6px 0 0">Tippe die drei Töne an: den Ton der Stufe und darüber jeden zweiten Ton der Tonleiter.</p>';
+    btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="bchk"'+(q.sel.length?'':' disabled')+'>Prüfen</button></p>';
+  }
+  var a='<div class="ans">';
+  for(var n=0;n<12;n++){
+    var cl='btn',on=q.sel.indexOf(n)>=0;
+    if(q.done){if(tri.notes.indexOf(n)>=0)cl+=' ok';else if(on)cl+=' bad';}else if(on)cl+=' on';
+    a+='<button class="'+cl+'" data-act="bsel" data-n="'+n+'">'+NOTES[n]+'</button>';
+  }
+  a+='</div>';
+  var o=keySelects('rand')+'<div class="card"><p class="prompt">Baue den Akkord der '+ROMAN[q.d]+'. Stufe von '+scaleName(q.root,sc)+'</p>'+seq+fb+btn+'</div>'+a;
+  var k=(tri.q==='dim'||tri.q==='aug')?-1:chordIndexOf(tri.r,tri.q);
+  if(q.done&&k>=0)o+=fretboard(chordDots(INSTR[state.inst].chords[k],true),null,chordFrets(INSTR[state.inst].chords[k]));
+  return o;
+}
+function viewChordStep(){
+  if(!state.q)newDegreeQ('step');
+  var q=state.q,tri=q.tri,sc=SCALES[q.t],fb='<p class="fb">&nbsp;</p>',btn='',txt;
+  var all=[0,1,2,3,4,5,6].map(function(i){return triadAt(q.root,q.t,i);});
+  if(q.form===0)txt='Welche Stufe ist '+tri.name+' in '+scaleName(q.root,sc)+'?';
+  else txt='Welcher Akkord steht auf der '+ROMAN[q.d]+'. Stufe von '+scaleName(q.root,sc)+'?';
+  if(q.done){
+    var expl=tri.roman+' = '+tri.name+' ('+tri.notes.map(noteName).join(' ')+')';
+    if(q.ok)fb='<p class="fb ok">Richtig! '+expl+'</p>';
+    else{fb='<p class="fb bad">Richtig wäre: '+expl+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }
+  var a='<div class="ans">';
+  all.forEach(function(x,i){
+    var cl='btn';
+    if(q.done){if(i===q.d)cl+=' ok';else if(!q.ok&&i===q.picked)cl+=' bad';}
+    a+='<button class="'+cl+'" data-act="dans" data-v="'+i+'">'+(q.form===0?x.roman:x.name)+'</button>';
+  });
+  a+='</div>';
+  return keySelects('rand')+'<div class="card"><p class="prompt">'+txt+'</p>'+fb+btn+'</div>'+a;
+}
+
+// ----- Lernpfad: Töne → Tonleitern → Akkorde -----
+// Zählt Einträge einer Statistik-Gruppe, die als sicher gelten: mindestens 3 Antworten, davon 80 % richtig
+function sureCount(bucket,keys){
+  var b=stats[bucket]||{},n=0;
+  keys.forEach(function(k){var s=b[k];if(s&&s.a>=3&&s.c/s.a>=0.8)n++;});
+  return n;
+}
+function viewPath(){
+  var cs=INSTR[state.inst].chords,degKeys=[];
+  [0,1].forEach(function(t){for(var d=0;d<7;d++)degKeys.push(degKey(t,triadAt(0,t,d)));});
+  var stages=[
+    {title:'Töne',text:'Die 12 Töne und ihre Plätze auf dem Griffbrett. Ein Bund ist ein Halbton.',
+     done:sureCount('notes',[0,1,2,3,4,5,6,7,8,9,10,11]),total:12,unit:'Töne sicher',
+     links:[['map','Karte'],['find','Finden'],['name','Erkennen']]},
+    {title:'Tonleitern',text:'Eine Tonleiter wählt Töne nach einem festen Muster aus. Dur: 2-2-1-2-2-2-1 Halbtöne, Moll: 2-1-2-2-1-2-2.',
+     done:sureCount('scales',SCALES.map(function(s){return s.id;})),total:SCALES.length,unit:'Tonleiter-Arten sicher',
+     links:[['smap','Karte'],['sfind','Finden'],['sname','Erkennen'],['splay','Spielen']]},
+    {title:'Akkorde',text:'Auf jeder Stufe einer Tonleiter stapelst du jeden zweiten Ton: 1., 3. und 5. Ton ergeben den Akkord. Aus C-Dur wird so I = C E G, ii = D F A.',
+     done:sureCount('chords',cs.map(function(c){return c.n;}))+sureCount('degrees',degKeys),total:cs.length+degKeys.length,unit:'Akkorde und Stufen sicher',
+     links:[['cdeg','Stufen'],['cbuild','Bauen'],['cstep','Stufe'],['cfind','Greifen'],['cname','Erkennen'],['cplay','Spielen']]}
+  ];
+  var next=stages.length-1;
+  for(var i=0;i<stages.length;i++)if(stages[i].done/stages[i].total<0.7){next=i;break;}
+  var o='<div class="card"><p class="prompt" style="font-size:17px">Dein Weg</p><p class="hint" style="margin:4px 0 0">Aus den Tönen entstehen die Tonleitern, aus den Tonleitern die Akkorde. Jede Stufe baut auf der vorherigen auf. „Sicher“ heißt: mindestens 3 Antworten, davon 80 % richtig.</p></div>';
+  stages.forEach(function(s,i){
+    var pct=Math.round(100*s.done/s.total);
+    o+='<div class="card stage'+(i===next?' next':'')+'"><h2>Stufe '+(i+1)+' · '+s.title+(i===next?'<span class="badge">Als Nächstes</span>':'')+'</h2>'+
+       '<p class="hint" style="margin:4px 0 0">'+s.text+'</p><div class="bar"><i style="width:'+pct+'%"></i></div>'+
+       '<span class="hint">'+s.done+' von '+s.total+' '+s.unit+'</span><div class="links">';
+    s.links.forEach(function(l){o+='<button class="btn" data-act="tab" data-v="'+l[0]+'">'+l[1]+'</button>';});
+    o+='</div></div>';
+  });
+  return o;
+}
+
 // ----- Tonleitern -----
 function scaleSelects(){
   var o='<div class="sel"><label>Grundton <select data-act="sroot">';
@@ -823,13 +966,14 @@ function viewScalePlay(){
 
 // ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
 var GROUPS=[
+  {id:'path',name:'Lernen',modes:[['path','Lernen']]},
   {id:'notes',name:'Töne',modes:[['map','Karte'],['find','Finden'],['name','Erkennen']]},
-  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cfind','Greifen'],['cname','Erkennen'],['cplay','Spielen']]},
+  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cdeg','Stufen'],['cbuild','Bauen'],['cstep','Stufe'],['cfind','Greifen'],['cname','Erkennen'],['cplay','Spielen']]},
   {id:'scales',name:'Tonleitern',modes:[['smap','Karte'],['sfind','Finden'],['sname','Erkennen'],['splay','Spielen']]},
   {id:'tune',name:'Stimmen',modes:[['tune','Stimmen']]},
   {id:'stats',name:'Statistik',modes:[['stats','Statistik']]}
 ];
-var VIEWS={map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,cplay:viewChordPlay,
+var VIEWS={path:viewPath,cdeg:viewChordDeg,cbuild:viewChordBuild,cstep:viewChordStep,map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,cplay:viewChordPlay,
   smap:viewScaleMap,sfind:viewScaleFind,sname:viewScaleName,splay:viewScalePlay,tune:viewTune,stats:viewStats};
 function groupOf(mode){
   for(var i=0;i<GROUPS.length;i++)for(var j=0;j<GROUPS[i].modes.length;j++)if(GROUPS[i].modes[j][0]===mode)return GROUPS[i];
@@ -839,11 +983,11 @@ function render(){
   var g=groupOf(state.mode);
   var o='<h1>Griffbrett-Trainer</h1><div class="inst">';
   Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-  o+='</div><p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs">';
+  o+='</div><p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+GROUPS.length+',1fr)">';
   GROUPS.forEach(function(x){o+='<button class="tab'+(x===g?' on':'')+'" data-act="grp" data-v="'+x.id+'">'+x.name+'</button>';});
   o+='</div>';
   if(g.modes.length>1){
-    o+='<div class="tabs sub" style="grid-template-columns:repeat('+g.modes.length+',1fr)">';
+    o+='<div class="tabs sub" style="grid-template-columns:repeat('+Math.min(g.modes.length,4)+',1fr)">';
     g.modes.forEach(function(m){o+='<button class="tab'+(state.mode===m[0]?' on':'')+'" data-act="tab" data-v="'+m[0]+'">'+m[1]+'</button>';});
     o+='</div>';
   }
@@ -889,6 +1033,25 @@ function handle(el){
     render();
   }
   else if(act==='csel'){state.cSel=+v;render();}
+  else if(act==='dsel'){state.dSel=+v;render();}
+  else if(act==='bsel'){
+    if(!q||q.done)return;
+    var bn=+el.getAttribute('data-n'),bi=q.sel.indexOf(bn);
+    if(bi>=0)q.sel.splice(bi,1);else q.sel.push(bn);
+    render();
+  }
+  else if(act==='bchk'){
+    if(!q||q.done||!q.sel.length)return;
+    q.done=true;q.ok=q.sel.slice().sort().join()===q.tri.notes.slice().sort().join();
+    record(degKey(q.t,q.tri),q.ok,'degrees');render();
+    if(q.ok)autoAdvance(q,'cbuild',1500);
+  }
+  else if(act==='dans'){
+    if(!q||q.done)return;
+    q.done=true;q.picked=+v;q.ok=(+v===q.d);
+    record(degKey(q.t,q.tri),q.ok,'degrees');render();
+    if(q.ok)autoAdvance(q,'cstep',1200);
+  }
   else if(act==='more'){state.moreOpen=!state.moreOpen;render();}
   else if(act==='strum'){
     var c=I.chords[Math.min(state.cSel,I.chords.length-1)];

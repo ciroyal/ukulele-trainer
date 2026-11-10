@@ -37,7 +37,7 @@ def launch(p, wav):
 
 def go(pg, mode):
     """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
-    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords',
+    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords','cdeg':'chords','cbuild':'chords','cstep':'chords','path':'path',
               'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
     pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
     if pg.evaluate('state.mode') != mode:
@@ -93,7 +93,7 @@ try:
         b = launch(p, a440)
         pg = new_page(b, errors, bad)
 
-        for v in ['map', 'find', 'name', 'cmap', 'cfind', 'cname', 'cplay', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
+        for v in ['path', 'map', 'find', 'name', 'cmap', 'cdeg', 'cbuild', 'cstep', 'cfind', 'cname', 'cplay', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
             go(pg, v)
             check('Seite ' + v, pg.evaluate('state.mode') == v and pg.locator('#root .card, #root svg').count() > 0)
 
@@ -166,6 +166,7 @@ try:
         errors, bad = [], []
         pg = new_page(b, errors, bad)
         pg.click('[data-act="inst"][data-v="gtr"]')
+        go(pg, 'map')
         check('Gitarre: 6 Saiten auf der Karte', pg.evaluate("STR.length")==6 and pg.locator('rect.hit').count()==6*6)
         expected = pg.evaluate("(function(){var c=0;for(var s=0;s<6;s++)for(var f=0;f<=5;f++)if(isNat(noteAt(s,f)))c++;return c})()")
         check('Gitarre: Karte zeigt alle Naturtöne', pg.locator('.dot').count() == expected, f'{expected} erwartet')
@@ -229,6 +230,44 @@ try:
         drawn = pg.evaluate("(function(){var s={};for(var i=0;i<60;i++){newChordQ();s[INSTR.uke.chords[state.q.i].n]=1;}return Object.keys(s).sort().join(' ')})()")
         check('Akkord-Aufgaben nur aus der Tonart', set(drawn.split()) <= set('Am C Dm Em F G G7'.split()), drawn)
         pg.select_option('select[data-act="kroot"]', '-1')
+        # Stufenakkorde: Aufbau der Dreiklänge aus der Tonleiter
+        tri = pg.evaluate("""(function(){function s(r,t){return [0,1,2,3,4,5,6].map(function(d){var x=triadAt(r,t,d);return x.roman+' '+x.name;}).join(', ');}
+          return [s(0,0),s(9,1)];})()""")
+        check('Stufenakkorde C-Dur', tri[0] == 'I C, ii Dm, iii Em, IV F, V G, vi Am, vii° H°', tri[0])
+        check('Stufenakkorde A-Moll', tri[1] == 'i Am, ii° H°, III C, iv Dm, v Em, VI F, VII G', tri[1])
+        go(pg, 'cdeg')
+        pg.select_option('select[data-act="kroot"]', '0'); pg.select_option('select[data-act="ktype"]', '0')
+        check('Stufen-Übersicht: 7 Zeilen', pg.locator('[data-act="dsel"]').count() == 7)
+        pg.click('[data-act="dsel"][data-v="3"]')
+        check('Stufe IV zeigt F mit Griff', 'IV: F' in pg.inner_text('#root') and pg.locator('.dot').count() == 4, str(pg.locator('.dot').count()))
+        pg.click('[data-act="dsel"][data-v="6"]')
+        check('Stufe vii° ohne Griff', 'vermindert' in pg.inner_text('#root'))
+        go(pg, 'cbuild')
+        pg.evaluate("state.kRoot=0;state.kType=0;state.q={kind:'build',root:0,t:0,d:1,tri:triadAt(0,0,1),sel:[],done:false,ok:false,picked:null,id:81};render()")   # ii in C-Dur = Dm
+        for n in ('D', 'F'):
+            pg.click(f'.ans .btn:text-is("{n}")')
+        pg.click('.ans .btn:text-is("G")')
+        pg.click('.ans .btn:text-is("G")')   # wieder abwählen
+        pg.click('.ans .btn:text-is("A")')
+        pg.click('[data-act="bchk"]')
+        check('Akkord bauen: Dm aus C-Dur', pg.evaluate("state.q.ok===true&&stats.degrees['Dur ii'].c===1"))
+        pg.evaluate("state.q={kind:'build',root:0,t:0,d:1,tri:triadAt(0,0,1),sel:[],done:false,ok:false,picked:null,id:82};render()")
+        for n in ('D', 'F#', 'A'):
+            pg.click(f'.ans .btn:text-is("{n}")')
+        pg.click('[data-act="bchk"]')
+        check('Akkord bauen: falsche Töne', pg.evaluate("state.q.done&&!state.q.ok") and 'Richtig wäre' in pg.inner_text('.fb'))
+        go(pg, 'cstep')
+        pg.evaluate("state.q={kind:'step',root:0,t:0,d:5,tri:triadAt(0,0,5),form:0,done:false,ok:false,picked:null,id:83};render()")   # Am in C-Dur = vi
+        pg.click('.ans .btn:text-is("vi")')
+        check('Stufe erkennen: Am ist vi', pg.evaluate("state.q.ok===true"))
+        pg.evaluate("state.q={kind:'step',root:7,t:0,d:3,tri:triadAt(7,0,3),form:1,done:false,ok:false,picked:null,id:84};render()")   # IV in G-Dur = C
+        check('Frage nach Akkord der IV. Stufe', 'IV. Stufe von G-Dur' in pg.inner_text('.card .prompt'))
+        pg.click('.ans .btn:text-is("C")')
+        check('Akkord zur Stufe: IV in G-Dur ist C', pg.evaluate("state.q.ok===true"))
+        pg.select_option('select[data-act="kroot"]', '-1')
+        go(pg, 'path')
+        check('Lernpfad zeigt 3 Stufen', pg.locator('.stage').count() == 3 and 'Als Nächstes' in pg.inner_text('#root'))
+        check('Lernpfad: Link führt zur Übung', (pg.click('.stage [data-v="cbuild"]') or True) and pg.evaluate("state.mode")=='cbuild')
         go(pg, 'smap')
         pg.evaluate("state.sRoot=0;state.sType=0;render()")
         exp = pg.evaluate("(function(){var set=[0,2,4,5,7,9,11],c=0;for(var s=0;s<4;s++)for(var f=0;f<=5;f++)if(set.indexOf(noteAt(s,f))>=0)c++;return c})()")
