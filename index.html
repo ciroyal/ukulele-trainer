@@ -117,7 +117,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 15:10';
+var VERSION='2026-11-10 · 15:30';
 var NOTES=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
 var FLATS=['','Des','','Es','','','Ges','','As','','B',''];
 var NAMES=NOTES.map(function(n,i){return FLATS[i]?n+'/'+FLATS[i]:n;});
@@ -899,11 +899,16 @@ function svgWrap(w,h,inner){return '<svg viewBox="0 0 '+w+' '+h+'" style="width:
 function svgTxt(x,y,s,o){o=o||{};return '<text x="'+x+'" y="'+y+'" text-anchor="'+(o.a||'middle')+'" font-size="'+(o.s||11)+'" fill="'+(o.c||'var(--text)')+'"'+(o.b?' font-weight="500"':'')+'>'+s+'</text>';}
 // Klaviatur über eine Oktave; hl = hervorgehobene Tonklassen
 function pianoSvg(hl){
+  // echte Klaviatur: weiße Tasten weiß, schwarze schwarz (in jedem Farbschema); Töne der Tonleiter tragen einen grünen Punkt
   hl=hl||[];var W=34,o='',wp=[0,2,4,5,7,9,11],bp={1:0,3:1,6:3,8:4,10:5},i;
   wp.forEach(function(pc,k){var on=hl.indexOf(pc)>=0;
-    o+='<rect x="'+(k*W+1)+'" y="1" width="'+(W-2)+'" height="92" rx="3" fill="'+(on?'var(--accentbg)':'var(--card)')+'" stroke="'+(on?'var(--accent)':'var(--line)')+'"/>'+svgTxt(k*W+W/2,86,NOTES[pc],{s:12,c:on?'var(--accentText)':'var(--text)',b:on});});
+    o+='<rect x="'+(k*W+1)+'" y="1" width="'+(W-2)+'" height="92" rx="3" fill="#fff" stroke="#8a8880"/>';
+    if(on)o+='<circle cx="'+(k*W+W/2)+'" cy="70" r="11" fill="#0F6E56"/>';
+    o+=svgTxt(k*W+W/2,on?74:86,NOTES[pc],{s:12,c:on?'#fff':'#5F5E5A',b:on});});
   for(i in bp){var pc=+i,on=hl.indexOf(pc)>=0,x=bp[i]*W+W-10;
-    o+='<rect x="'+x+'" y="1" width="20" height="54" rx="3" fill="'+(on?'var(--accent)':'var(--sharpText)')+'"/>'+svgTxt(x+10,48,NOTES[pc].replace('is','♯'),{s:9,c:'var(--bg)'});}
+    o+='<rect x="'+x+'" y="1" width="20" height="56" rx="3" fill="#1f1e1d"/>';
+    if(on)o+='<circle cx="'+(x+10)+'" cy="20" r="7" fill="#0F6E56"/>';
+    o+=svgTxt(x+10,on?23:48,NOTES[pc].replace('is','♯'),{s:9,c:'#fff'});}
   return svgWrap(7*W+2,96,o);
 }
 // Schrittband: je Schritt ein Block, Ganz = 2 Einheiten, Halb = 1 Einheit; Töne darunter
