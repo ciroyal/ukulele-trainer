@@ -20,7 +20,7 @@ button,select{font:inherit;color:var(--text)}
 .inst{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:0 0 10px}
 .inst .btn{padding:8px 0}
 .head{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}
-.theory p{font-size:15px;margin:6px 0 0}
+.gfx{margin:8px 0 6px}.theory p{font-size:15px;margin:6px 0 0}
 .titlerow{display:flex;align-items:center;gap:12px}
 .play{display:flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0 0 0 2px;border:0.5px solid var(--accent);background:var(--accentbg);color:var(--accentText);border-radius:50%;cursor:pointer;flex:none}
 .head .tools{display:flex;gap:8px}
@@ -117,7 +117,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 14:30';
+var VERSION='2026-11-10 · 15:10';
 var NOTES=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
 var FLATS=['','Des','','Es','','','Ges','','As','','B',''];
 var NAMES=NOTES.map(function(n,i){return FLATS[i]?n+'/'+FLATS[i]:n;});
@@ -891,8 +891,73 @@ function viewChordStep(){
 
 // ----- Theorie: Erklärungen zu jedem Schritt -----
 // Karte mit Überschrift und Absätzen (Text darf einfaches HTML enthalten)
-function theoryCard(title,paras){
-  return '<div class="card theory"><p class="prompt" style="font-size:17px">'+title+'</p>'+paras.map(function(t){return '<p>'+t+'</p>';}).join('')+'</div>';
+function theoryCard(title,paras,gfx){
+  return '<div class="card theory"><p class="prompt" style="font-size:17px">'+title+'</p>'+(gfx?'<div class="gfx">'+gfx+'</div>':'')+paras.map(function(x){return '<p>'+x+'</p>';}).join('')+'</div>';
+}
+// --- Grafiken (SVG, Farben aus den CSS-Variablen) ---
+function svgWrap(w,h,inner){return '<svg viewBox="0 0 '+w+' '+h+'" style="width:100%;height:auto;display:block" font-family="inherit">'+inner+'</svg>';}
+function svgTxt(x,y,s,o){o=o||{};return '<text x="'+x+'" y="'+y+'" text-anchor="'+(o.a||'middle')+'" font-size="'+(o.s||11)+'" fill="'+(o.c||'var(--text)')+'"'+(o.b?' font-weight="500"':'')+'>'+s+'</text>';}
+// Klaviatur über eine Oktave; hl = hervorgehobene Tonklassen
+function pianoSvg(hl){
+  hl=hl||[];var W=34,o='',wp=[0,2,4,5,7,9,11],bp={1:0,3:1,6:3,8:4,10:5},i;
+  wp.forEach(function(pc,k){var on=hl.indexOf(pc)>=0;
+    o+='<rect x="'+(k*W+1)+'" y="1" width="'+(W-2)+'" height="92" rx="3" fill="'+(on?'var(--accentbg)':'var(--card)')+'" stroke="'+(on?'var(--accent)':'var(--line)')+'"/>'+svgTxt(k*W+W/2,86,NOTES[pc],{s:12,c:on?'var(--accentText)':'var(--text)',b:on});});
+  for(i in bp){var pc=+i,on=hl.indexOf(pc)>=0,x=bp[i]*W+W-10;
+    o+='<rect x="'+x+'" y="1" width="20" height="54" rx="3" fill="'+(on?'var(--accent)':'var(--sharpText)')+'"/>'+svgTxt(x+10,48,NOTES[pc].replace('is','♯'),{s:9,c:'var(--bg)'});}
+  return svgWrap(7*W+2,96,o);
+}
+// Schrittband: je Schritt ein Block, Ganz = 2 Einheiten, Halb = 1 Einheit; Töne darunter
+function stepsSvg(steps,names,root){
+  var U=26,x=12,o='',pc=root;
+  steps.forEach(function(s,i){var w=s*U,half=s===1;
+    o+='<rect x="'+x+'" y="6" width="'+(w-3)+'" height="30" rx="5" fill="'+(half?'var(--badbg)':'var(--accentbg)')+'" stroke="'+(half?'var(--bad)':'var(--accent)')+'"/>'+svgTxt(x+(w-3)/2,26,half?'Halb':(s===2?'Ganz':'1½'),{s:half?9:11,c:half?'var(--badText)':'var(--accentText)'});
+    o+=svgTxt(x,56,names[i],{s:12,b:1});x+=w;});
+  o+=svgTxt(x-3,56,names[names.length-1],{s:12,b:1});
+  return svgWrap(x+12,66,o);
+}
+// Bundleiste einer Saite: leer bis 12. Bund
+function fretStripSvg(openPc){
+  var W=26,o='',i;
+  for(i=0;i<=12;i++){var on=i===0||i===12;
+    o+='<rect x="'+(i*W+1)+'" y="6" width="'+(W-2)+'" height="30" rx="4" fill="'+(on?'var(--openbg)':'var(--card)')+'" stroke="'+(on?'var(--open)':'var(--line)')+'"/>'+svgTxt(i*W+W/2,25,NOTES[(openPc+i)%12].split('/')[0],{s:10,c:on?'var(--openText)':'var(--text)',b:on});
+    o+=svgTxt(i*W+W/2,52,i===0?'leer':String(i),{s:10,c:'var(--muted)'});}
+  return svgWrap(13*W+2,60,o);
+}
+// Zwölf Halbtöne von C bis C; mark=true zeigt die Oktave, sonst die zwei natürlichen Halbtonschritte
+function chromSvg(oct){
+  var W=26,o='',i,sh=[1,3,6,8,10];
+  for(i=0;i<=12;i++){var pc=i%12,b=sh.indexOf(pc)>=0;
+    o+='<rect x="'+(i*W+1)+'" y="30" width="'+(W-2)+'" height="30" rx="4" fill="'+(b?'var(--sharp)':'var(--card)')+'" stroke="var(--line)"/>'+svgTxt(i*W+W/2,49,NOTES[pc].replace('is','♯'),{s:10,c:b?'var(--sharpText)':'var(--text)'});}
+  if(oct){o+='<path d="M13 26 Q'+(6*W+13)+' 6 '+(12*W+13)+' 26" fill="none" stroke="var(--open)" stroke-width="1.5"/>'+svgTxt(6*W+13,9,'12 Halbtöne = 1 Oktave',{s:11,c:'var(--openText)',b:1});}
+  else{[[4,5],[11,12]].forEach(function(p){var a=p[0]*W+W/2,b=p[1]*W+W/2;o+='<path d="M'+a+' 25 L'+a+' 20 L'+b+' 20 L'+b+' 25" fill="none" stroke="var(--bad)" stroke-width="1.5"/>'+svgTxt((a+b)/2,14,'Halb',{s:10,c:'var(--badText)',b:1});});
+    o+=svgTxt(6*W,76,'Alle anderen Nachbarn: Ganzton (mit Zwischenton)',{s:10,c:'var(--muted)'});}
+  return svgWrap(13*W+2,oct?64:82,o);
+}
+// Terzenstapel: Tonleiter in einer Reihe, Stufen 1, 3, 5 hervorgehoben
+function stackSvg(names,hl){hl=hl||[0,2,4];
+  var W=46,o='',i;
+  names.forEach(function(n,i){var on=hl.indexOf(i)>=0;
+    o+='<circle cx="'+(i*W+23)+'" cy="34" r="16" fill="'+(on?'var(--accent)':'var(--card)')+'" stroke="'+(on?'var(--accent)':'var(--line)')+'"/>'+svgTxt(i*W+23,39,n,{s:13,c:on?'var(--bg)':'var(--text)',b:on})+svgTxt(i*W+23,68,String(i+1),{s:10,c:'var(--muted)'});});
+  [[0,2],[2,4]].forEach(function(p){var a=p[0]*W+23,b=p[1]*W+23;o+='<path d="M'+a+' 16 Q'+(a+b)/2+' -6 '+b+' 16" fill="none" stroke="var(--accent)" stroke-width="1.5"/>'+svgTxt((a+b)/2,7,'Terz',{s:10,c:'var(--accentText)'});});
+  return svgWrap(7*W,76,o);
+}
+// Akkordbau in Halbtönen: Zeilen [Name, Terz unten, Terz oben]
+function triadBarSvg(rows){
+  var U=26,o='',y=0;
+  rows.forEach(function(r){
+    o+=svgTxt(0,y+20,r[0],{a:'start',s:12,b:1})
+     +'<rect x="78" y="'+(y+4)+'" width="'+(r[1]*U-3)+'" height="24" rx="5" fill="var(--accentbg)" stroke="var(--accent)"/>'+svgTxt(78+r[1]*U/2,y+20,r[1]+' Halbt.',{s:10,c:'var(--accentText)'})
+     +'<rect x="'+(78+r[1]*U)+'" y="'+(y+4)+'" width="'+(r[2]*U-3)+'" height="24" rx="5" fill="var(--openbg)" stroke="var(--open)"/>'+svgTxt(78+r[1]*U+r[2]*U/2,y+20,r[2]+' Halbt.',{s:10,c:'var(--openText)'});
+    y+=36;});
+  return svgWrap(78+7*U+2,y,o);
+}
+// Stufenakkorde als farbige Reihe: Dur grün, Moll violett, vermindert rot
+function chipsHtml(row){
+  return '<div style="display:flex;gap:4px">'+row.map(function(x){
+    var dim=x.roman.indexOf('°')>=0,mol=!dim&&x.roman===x.roman.toLowerCase();
+    var c=dim?'bad':mol?'open':'accent',bg=dim?'badbg':mol?'openbg':'accentbg',tx=dim?'badText':mol?'openText':'accentText';
+    return '<div style="flex:1;min-width:0;text-align:center;padding:6px 0;border-radius:8px;border:0.5px solid var(--'+c+');background:var(--'+bg+');color:var(--'+tx+')"><div style="font-size:11px;opacity:.8">'+x.roman+'</div><div style="font-size:13px;font-weight:500">'+x.name.split('/')[0]+'</div></div>';}).join('')+'</div>'
+    +'<p class="hint" style="margin:6px 0 0"><span style="color:var(--accentText)">■</span> Dur &nbsp;<span style="color:var(--openText)">■</span> Moll &nbsp;<span style="color:var(--badText)">■</span> vermindert</p>';
 }
 function noteList(notes){return notes.map(noteName).join(' ');}
 function viewTheoryNotes(){
@@ -900,48 +965,48 @@ function viewTheoryNotes(){
   return theoryCard('Stammtöne und Zwischentöne',[
     'Es gibt 7 Stammtöne: C D E F G A H. Auf dem Klavier sind es die weißen Tasten.',
     'Dazu kommen 5 Zwischentöne (schwarze Tasten): Cis/Des, Dis/Es, Fis/Ges, Gis/As und Ais/B. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit -is ist er erhöht, mit Des, Es, Ges, As, B erniedrigt.',
-    'H ist das internationale B, und B ist das internationale Bb.'])+
+    'H ist das internationale B, und B ist das internationale Bb.'],pianoSvg([0,2,4,5,7,9,11]))+
   theoryCard('Halbton und Ganzton',[
     'Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton.',
-    'Zwischen E und F sowie zwischen H und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'])+
+    'Zwischen E und F sowie zwischen H und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'],chromSvg(false))+
   theoryCard('Oktave',[
-    'Nach 12 Halbtönen wiederholen sich die Tonnamen, nur höher. Der Abstand heißt Oktave. Auf dem 12. Bund klingt eine Saite eine Oktave höher als leer.'])+
+    'Nach 12 Halbtönen wiederholen sich die Tonnamen, nur höher. Der Abstand heißt Oktave. Auf dem 12. Bund klingt eine Saite eine Oktave höher als leer.'],chromSvg(true))+
   theoryCard('Die Saiten ('+I.name+')',[
-    'Leere Saiten: '+open+'. Jeder Bund darüber ist einen Halbton höher. Aus den leeren Saiten kannst du also jeden Ton abzählen.']);
+    'Leere Saiten: '+open+'. Jeder Bund darüber ist einen Halbton höher. Aus den leeren Saiten kannst du also jeden Ton abzählen.'],'<p class="hint" style="margin:0 0 4px">'+I.strings[0].label+', Bund für Bund:</p>'+fretStripSvg(I.strings[0].m%12));
 }
 function viewTheoryScales(){
   var cmaj=scaleNotes(0,SCALES[0]),amin=scaleNotes(9,SCALES[1]);
   var cp=scaleNotes(0,SCALES[2]),ap=scaleNotes(9,SCALES[3]);
   return theoryCard('Was ist eine Tonleiter?',[
-    'Eine Tonleiter ordnet Töne von einem Grundton aus nach einem festen Muster aus Ganz- und Halbtonschritten. Die Töne heißen Stufen und werden von 1 bis 7 gezählt. Grundton plus Tonleiter-Art ergibt die Tonart, zum Beispiel C-Dur.'])+
+    'Eine Tonleiter ordnet Töne von einem Grundton aus nach einem festen Muster aus Ganz- und Halbtonschritten. Die Töne heißen Stufen und werden von 1 bis 7 gezählt. Grundton plus Tonleiter-Art ergibt die Tonart, zum Beispiel C-Dur.'],stackSvg(cmaj.map(function(n){return NOTES[n];}),[0]).replace(/<path[^>]*\/>/g,'').replace(/>Terz</g,'><'))+
   theoryCard('Dur',[
     'Muster: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb.',
-    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.'])+
+    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.'],stepsSvg([2,2,1,2,2,2,1],cmaj.map(noteName).concat(['C']).map(function(n){return n.split('/')[0];}),0)+pianoSvg(cmaj))+
   theoryCard('Moll (natürlich)',[
     'Muster: Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz.',
-    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'])+
+    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],stepsSvg([2,1,2,2,1,2,2],amin.map(noteName).concat(['A']).map(function(n){return n.split('/')[0];}),9)+pianoSvg(amin))+
   theoryCard('Parallele Tonart',[
-    'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'])+
+    'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'],pianoSvg(cmaj)+'<p class="hint" style="margin:4px 0 0">Dieselben weißen Tasten: C-Dur beginnt auf C, A-Moll auf A.</p>')+
   theoryCard('Pentatonik',[
     'Fünf Töne statt sieben, ohne Halbtonschritte. Dur-Pentatonik lässt die 4. und 7. Stufe weg: C-Dur-Pentatonik ist '+noteList(cp)+'.',
-    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.']);
+    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur-Pentatonik</p>'+pianoSvg(cp)+'<p class="hint" style="margin:8px 0 4px">A-Moll-Pentatonik</p>'+pianoSvg(ap));
 }
 function viewTheoryChords(){
   var cd=[0,1,2,3,4,5,6].map(function(d){return triadAt(0,0,d);}),am=[0,1,2,3,4,5,6].map(function(d){return triadAt(9,1,d);});
   function row(t){return t.map(function(x){return x.roman+' '+x.name;}).join(', ');}
   return theoryCard('Dreiklang',[
-    'Ein Dreiklang entsteht, wenn du auf einem Ton jeden zweiten Ton der Tonleiter stapelst: Grundton (1.), Terz (3.) und Quinte (5.). In C-Dur ergibt das ab dem C: C E G.'])+
+    'Ein Dreiklang entsteht, wenn du auf einem Ton jeden zweiten Ton der Tonleiter stapelst: Grundton (1.), Terz (3.) und Quinte (5.). In C-Dur ergibt das ab dem C: C E G.'],stackSvg(['C','D','E','F','G','A','H']))+
   theoryCard('Dur, Moll, vermindert',[
     'Dur: große Terz (4 Halbtöne) und Quinte (7). Beispiel C E G.',
     'Moll: kleine Terz (3 Halbtöne) und Quinte (7). Beispiel C Es G.',
-    'Vermindert: kleine Terz (3) und verminderte Quinte (6). Beispiel C Es Ges.'])+
+    'Vermindert: kleine Terz (3) und verminderte Quinte (6). Beispiel C Es Ges.'],triadBarSvg([['Dur',4,3],['Moll',3,4],['vermindert',3,3]]))+
   theoryCard('Stufenakkorde',[
     'Baust du auf jeder Stufe einer Tonleiter einen Dreiklang, entstehen die Stufenakkorde. Sie werden mit römischen Ziffern benannt: groß = Dur, klein = Moll, ° = vermindert.',
     'Dur: I, ii, iii, IV, V, vi, vii°. In C-Dur: '+row(cd)+'.',
-    'Moll (natürlich): i, ii°, III, iv, v, VI, VII. In A-Moll: '+row(am)+'.'])+
+    'Moll (natürlich): i, ii°, III, iv, v, VI, VII. In A-Moll: '+row(am)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur</p>'+chipsHtml(cd.slice(0,7))+'<p class="hint" style="margin:10px 0 4px">A-Moll</p>'+chipsHtml(am.slice(0,7)))+
   theoryCard('Dominantseptakkord',[
     'Ein Dur-Dreiklang mit einer kleinen Septime obendrauf. Er entsteht, wenn du auf der V. Stufe einen vierten Ton stapelst: G7 in C-Dur ist G H D F. Er zieht gern zur I. Stufe hin.',
-    'In Moll wird als V. Stufe oft der Dur-Akkord genommen, in A-Moll also E oder E7.'])+
+    'In Moll wird als V. Stufe oft der Dur-Akkord genommen, in A-Moll also E oder E7.'],stackSvg(['G','A','H','C','D','E','F'],[0,2,4,6]).replace(/<path[^>]*\/>/g,'').replace(/>Terz</g,'><'))+
   theoryCard('Akkordnamen in der App',[
     'Nur der Ton = Dur (C), m = Moll (Cm), ° = vermindert (C°), 7 = Dominantseptakkord (C7). Zwischentöne stehen kurz mit -is, zum Beispiel Cis oder Cism. In den Titeln stehen beide Namen.']);
 }
