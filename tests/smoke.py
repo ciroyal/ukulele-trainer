@@ -1,8 +1,8 @@
-"""Rauchtest für den Ukulele-Trainer in einem echten Chrome mit simuliertem Mikrofon.
+"""Rauchtest für den Griffbrett-Trainer (Ukulele und Gitarre) in einem echten Chrome mit simuliertem Mikrofon.
 
 Aufruf:  python3 tests/smoke.py [Pfad/zu/index.html]
 Braucht: Python-Paket `playwright` und einen installierten Google Chrome (Pfad unten anpassen).
-Prüft Tabs, Karte, beide Quizformen, Statistik, Stimmgerät und das Spielen im Finden-Tab.
+Prüft Tabs, Karte, beide Quizformen, Statistik, Stimmgerät und das Spielen im Finden-Tab, danach die Gitarre.
 """
 import math, os, struct, subprocess, sys, tempfile, time, wave
 from playwright.sync_api import sync_playwright
@@ -108,6 +108,39 @@ try:
         pg = new_page(b, [], [])
         pg.click('[data-v="tune"]'); pg.click('[data-act="mic"]'); pg.wait_for_timeout(2500)
         check('Stimmgerät: zu tiefe C-Saite', pg.inner_text('#tn-note') == 'C' and 'Zu tief' in pg.inner_text('#tn-msg'), pg.inner_text('#tn-msg'))
+        b.close()
+
+        # --- Gitarre ---
+        e2 = make_wav('e2.wav', 82.41)      # tiefe E-Saite
+        h3 = make_wav('h3.wav', 246.94)     # H-Saite
+        e4 = make_wav('e4.wav', 329.63)     # hohe e-Saite
+        d3 = make_wav('d3.wav', 146.83)     # D-Saite
+        for wav, note, label in [(e2, 'E', 'tiefes E'), (h3, 'H', 'H'), (e4, 'e', 'hohes e')]:
+            b = launch(p, wav)
+            errors, bad = [], []
+            pg = new_page(b, errors, bad)
+            pg.click('[data-act="inst"][data-v="gtr"]')
+            pg.click('[data-v="tune"]'); pg.click('[data-act="mic"]'); pg.wait_for_timeout(3000)
+            check('Gitarre Stimmgerät: ' + label, pg.inner_text('#tn-note') == note and pg.inner_text('#tn-msg') == 'Gestimmt!',
+                  pg.inner_text('#tn-note') + ' / ' + pg.inner_text('#tn-hz') + ' / ' + pg.inner_text('#tn-msg'))
+            b.close()
+
+        b = launch(p, d3)
+        errors, bad = [], []
+        pg = new_page(b, errors, bad)
+        pg.click('[data-act="inst"][data-v="gtr"]')
+        check('Gitarre: 6 Saiten auf der Karte', pg.evaluate("STR.length")==6 and pg.locator('rect.hit').count()==6*6)
+        expected = pg.evaluate("(function(){var c=0;for(var s=0;s<6;s++)for(var f=0;f<=5;f++)if(isNat(noteAt(s,f)))c++;return c})()")
+        check('Gitarre: Karte zeigt alle Naturtöne', pg.locator('.dot').count() == expected, f'{expected} erwartet')
+        check('Gitarre: eigene Statistik', pg.evaluate("stats.total")==0)
+        check('Gitarre: Auswahl bleibt nach Neuladen', (pg.reload() or True) and pg.evaluate("state.inst")=='gtr')
+        pg.click('[data-v="find"]')
+        pg.evaluate("state.q={s:2,f:0,n:2,done:false,ok:false,picked:null,id:11};render()")  # D auf der D-Saite
+        pg.click('[data-act="mic"]'); pg.wait_for_timeout(2500)
+        check('Gitarre Finden mit Mikrofon: D-Saite', pg.evaluate("stats.correct")>=1 and pg.evaluate("state.q.id!==11||state.q.ok"))
+        pg.click('[data-act="inst"][data-v="uke"]')
+        check('Wechsel zur Ukulele stoppt Mikrofon', pg.evaluate("state.mic.on===false&&STR.length===4"))
+        check('Gitarre/Ukulele: keine Konsolenfehler', not errors, str(errors[:3]))
         b.close()
 finally:
     srv.terminate()
