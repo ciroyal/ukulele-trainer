@@ -227,6 +227,8 @@ try:
         pg.select_option('select[data-act="proot"]', '9'); pg.select_option('select[data-act="ptype"]', '1')   # A-Moll festlegen
         picks = [pg.evaluate("(newScaleQ('name'),state.q.root+'/'+state.q.t)") for _ in range(8)]
         check('Tonleiter wählbar: immer A-Moll', set(picks) == {'9/1'}, str(set(picks)))
+        check('Tonleiter-Auswahl bleibt nach Neuladen', (pg.reload() or True) and pg.evaluate("state.pRoot===9&&state.pType===1"))
+        go(pg, 'sname')
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,picked:null,done:false,ok:false,id:41};render()")   # 3. Ton von C-Dur = E
         pg.click('.ans .btn:text-is("E")')

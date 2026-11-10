@@ -911,10 +911,18 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
-  else if(a==='proot'){state.pRoot=+el.value;state.q=null;render();}
-  else if(a==='ptype'){state.pType=+el.value;state.q=null;render();}
+  else if(a==='proot'){state.pRoot=+el.value;state.q=null;savePick();render();}
+  else if(a==='ptype'){state.pType=+el.value;state.q=null;savePick();render();}
 });
+// Gewählte Übungs-Tonleiter merken (gilt für beide Instrumente)
+function savePick(){
+  try{localStorage.setItem('griffbrett-pick',state.pRoot+','+state.pType);}catch(e){/* Speicher gesperrt: Auswahl gilt nur bis zum Neuladen */}
+}
 (function(){
+  try{
+    var pk=(localStorage.getItem('griffbrett-pick')||'').split(',').map(Number);
+    if(pk.length===2&&pk[0]>=-1&&pk[0]<12&&pk[1]>=-1&&pk[1]<SCALES.length&&pk[0]%1===0&&pk[1]%1===0){state.pRoot=pk[0];state.pType=pk[1];}
+  }catch(e){/* Speicher gesperrt oder Wert kaputt: zufällig */}
   var saved=null;
   try{saved=localStorage.getItem('griffbrett-inst');}catch(e){/* Speicher gesperrt: mit Ukulele starten */}
   useInstrument(INSTR[saved]?saved:'uke');
