@@ -19,6 +19,9 @@ button,select{font:inherit;color:var(--text)}
 .tstrs{display:grid;gap:6px;margin:0 0 12px}
 .inst{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:0 0 10px}
 .inst .btn{padding:8px 0}
+.head{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}
+.gear{width:40px;height:40px;padding:0;border:0.5px solid var(--line);background:var(--card);border-radius:8px;font-size:20px;line-height:1;cursor:pointer}
+.gear.on{background:var(--accentbg);border-color:var(--accent)}
 .tstrs .btn{padding:10px 0}
 .btn.on{background:var(--accentbg);border-color:var(--accent);color:var(--accentText);font-weight:500}
 .btn.det{border-color:var(--accent)}
@@ -177,7 +180,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={inst:'uke',mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},gx:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -1003,9 +1006,14 @@ function groupOf(mode){
 }
 function render(){
   var g=groupOf(state.mode);
-  var o='<h1>Griffbrett-Trainer</h1><div class="inst">';
-  Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-  o+='</div><p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+GROUPS.length+',1fr)">';
+  // Kopfzeile: Titel links, Einstellungen (Instrument wählen) oben rechts
+  var o='<div class="head"><h1>Griffbrett-Trainer</h1><button class="gear'+(state.settings?' on':'')+'" data-act="settings" aria-label="Einstellungen" aria-expanded="'+(state.settings?'true':'false')+'">⚙</button></div>';
+  if(state.settings){
+    o+='<div class="card"><p class="prompt" style="font-size:17px">Einstellungen</p><p class="hint" style="margin:4px 0 8px">Instrument</p><div class="inst" style="margin:0">';
+    Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
+    o+='</div></div>';
+  }
+  o+='<p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+GROUPS.length+',1fr)">';
   GROUPS.forEach(function(x){o+='<button class="tab'+(x===g?' on':'')+'" data-act="grp" data-v="'+x.id+'">'+x.name+'</button>';});
   o+='</div>';
   var base=g.modes.filter(function(m){return !m[2];}),ex=g.modes.filter(function(m){return m[2];});
@@ -1038,12 +1046,13 @@ function handle(el){
   if(act==='tab'||act==='grp'){
     if(state.mic.on)stopMic();
     var mode=act==='tab'?v:(state.gm[v]||GROUPS.filter(function(x){return x.id===v;})[0].modes[0][0]); // Gruppe: zuletzt benutzte Unterseite
-    state.mode=mode;state.gm[groupOf(mode).id]=mode;
+    state.mode=mode;state.settings=false;state.gm[groupOf(mode).id]=mode;
     if(groupOf(mode).modes.some(function(m){return m[0]===mode&&m[2];}))state.gx[groupOf(mode).id]=mode; // zuletzt benutzte Übung der Gruppe
     state.q=null;state.resetArmed=false;render();
   }
   else if(act==='next'){next();}
-  else if(act==='inst'){useInstrument(v);render();}
+  else if(act==='settings'){state.settings=!state.settings;render();}
+  else if(act==='inst'){useInstrument(v);state.settings=false;render();}
   else if(act==='tstr'){
     state.tune.sel=v;
     if(v!=='auto'&&!state.mic.on)play(+v,0);

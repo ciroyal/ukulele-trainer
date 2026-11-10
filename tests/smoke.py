@@ -35,6 +35,12 @@ def launch(p, wav):
         '--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
         '--use-file-for-fake-audio-capture=' + wav])
 
+def set_inst(pg, inst):
+    """Instrument wählen: Einstellungen oben rechts öffnen, dann das Instrument antippen."""
+    if pg.locator('[data-act="inst"]').count() == 0:
+        pg.click('[data-act="settings"]')
+    pg.click(f'[data-act="inst"][data-v="{inst}"]')
+
 def go(pg, mode):
     """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
     groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords','cdeg':'chords','cbuild':'chords','cstep':'chords','path':'path',
@@ -158,7 +164,7 @@ try:
             b = launch(p, wav)
             errors, bad = [], []
             pg = new_page(b, errors, bad)
-            pg.click('[data-act="inst"][data-v="gtr"]')
+            set_inst(pg, 'gtr')
             pg.click('[data-v="tune"]'); pg.click('[data-act="mic"]'); pg.wait_for_timeout(3000)
             check('Gitarre Stimmgerät: ' + label, pg.inner_text('#tn-note') == note and pg.inner_text('#tn-msg') == 'Gestimmt!',
                   pg.inner_text('#tn-note') + ' / ' + pg.inner_text('#tn-hz') + ' / ' + pg.inner_text('#tn-msg'))
@@ -167,7 +173,7 @@ try:
         b = launch(p, d3)
         errors, bad = [], []
         pg = new_page(b, errors, bad)
-        pg.click('[data-act="inst"][data-v="gtr"]')
+        set_inst(pg, 'gtr')
         go(pg, 'map')
         check('Gitarre: 6 Saiten auf der Karte', pg.evaluate("STR.length")==6 and pg.locator('rect.hit').count()==6*6)
         expected = pg.evaluate("(function(){var c=0;for(var s=0;s<6;s++)for(var f=0;f<=5;f++)if(isNat(noteAt(s,f)))c++;return c})()")
@@ -178,9 +184,23 @@ try:
         pg.evaluate("state.q={s:2,f:0,n:2,done:false,ok:false,picked:null,id:11};render()")  # D auf der D-Saite
         pg.click('[data-act="mic"]'); pg.wait_for_timeout(2500)
         check('Gitarre Finden mit Mikrofon: D-Saite', pg.evaluate("stats.correct")>=1 and pg.evaluate("state.q.id!==11||state.q.ok"))
-        pg.click('[data-act="inst"][data-v="uke"]')
+        set_inst(pg, 'uke')
         check('Wechsel zur Ukulele stoppt Mikrofon', pg.evaluate("state.mic.on===false&&STR.length===4"))
         check('Gitarre/Ukulele: keine Konsolenfehler', not errors, str(errors[:3]))
+        b.close()
+
+        # Einstellungen oben rechts: Instrument nur dort wählbar
+        b = launch(p, a440)
+        pg = new_page(b, [], [])
+        check('Instrumentwahl ist zunächst versteckt', pg.locator('[data-act="inst"]').count() == 0 and pg.locator('.gear').count() == 1)
+        box = pg.locator('.gear').bounding_box()
+        check('Zahnrad sitzt oben rechts', box['x'] > 390 - 80 and box['y'] < 80, str(box))
+        pg.click('[data-act="settings"]')
+        check('Einstellungen zeigen beide Instrumente', pg.locator('[data-act="inst"]').count() == 2)
+        pg.click('[data-act="inst"][data-v="gtr"]')
+        check('Auswahl schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0 and pg.evaluate("state.inst")=='gtr' and 'Gitarre' in pg.inner_text('.sub'))
+        pg.click('[data-act="settings"]'); pg.click('[data-act="grp"][data-v="notes"]')
+        check('Seitenwechsel schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0)
         b.close()
 
         # --- Akkorde und Tonleitern (Ukulele, dann Gitarre) ---
@@ -302,7 +322,7 @@ try:
         pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,picked:null,done:false,ok:false,id:41};render()")   # 3. Ton von C-Dur = E
         pg.click('.ans .btn:text-is("E")')
         check('Tonleiter erkennen: 3. Ton von C-Dur', pg.evaluate("state.q.ok===true"))
-        pg.click('[data-act="inst"][data-v="gtr"]')
+        set_inst(pg, 'gtr')
         go(pg, 'cfind')
         pg.evaluate("state.q={i:0,fing:[0,0,0,0,0,0],done:false,ok:false,picked:null,id:51};render()")     # C-Dur: x32010
         pg.click('rect.hit[data-s="0"][data-f="0"]')                      # tiefe E-Saite dämpfen
@@ -360,7 +380,7 @@ try:
             errors, bad = [], []
             pg = new_page(b, errors, bad)
             if inst == 'gtr':
-                pg.click('[data-act="inst"][data-v="gtr"]')
+                set_inst(pg, 'gtr')
             go(pg, 'cplay')
             pg.evaluate(f"state.q={{i:{target},fing:[],done:false,ok:false,picked:null,id:71}};render()")
             pg.click('[data-act="mic"]'); pg.wait_for_timeout(3000)
