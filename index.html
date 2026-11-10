@@ -146,7 +146,7 @@ function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catc
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
 var state={inst:'uke',mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
-  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
+  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
   tune:{sel:'auto',hist:[],last:0,ok:0},   // Stimmgerät: gewählte Saite, letzte Messwerte, Zeitpunkt, Treffer in Folge
@@ -678,16 +678,12 @@ function viewChordMap(){
     var rest=g.all.filter(function(k){return g.inKey.indexOf(k)<0;});
     o+='<p class="hint" style="margin:0 0 6px">In '+scaleName(state.kRoot,SCALES[state.kType])+'</p>'+chips(g.inKey);
     if(rest.length){
-      // Weitere Akkorde als Auswahlliste, nach Art gruppiert
-      o+='<div class="sel"><label><select data-act="cmore"><option value="-1">Weitere Akkorde …</option>';
-      [['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
+      // Weitere Akkorde: Knopf klappt die Akkordknöpfe (gleiches Design wie oben) nach Art gruppiert auf und zu
+      o+='<div class="sel"><button class="btn" data-act="more">Weitere Akkorde '+(state.moreOpen?'▴':'▾')+'</button></div>';
+      if(state.moreOpen)[['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
         var part=rest.filter(function(k){return cs[k].q===qt[0];});
-        if(!part.length)return;
-        o+='<optgroup label="'+qt[1]+'">';
-        part.forEach(function(k){o+='<option value="'+k+'"'+(k===i?' selected':'')+'>'+cs[k].n+' ('+cs[k].t+')</option>';});
-        o+='</optgroup>';
+        if(part.length)o+='<p class="hint" style="margin:0 0 6px">'+qt[1]+'</p>'+chips(part);
       });
-      o+='</select></label></div>';
     }
   }else{
     [['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
@@ -893,6 +889,7 @@ function handle(el){
     render();
   }
   else if(act==='csel'){state.cSel=+v;render();}
+  else if(act==='more'){state.moreOpen=!state.moreOpen;render();}
   else if(act==='strum'){
     var c=I.chords[Math.min(state.cSel,I.chords.length-1)];
     playSeq(c.f.map(function(f,s){return f<0?null:STR[s].f*Math.pow(2,f/12);}),90);
@@ -972,7 +969,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='cmore')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -984,7 +981,6 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
-  else if(a==='cmore'){if(+el.value>=0){state.cSel=+el.value;render();}}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
   else if(a==='ktype'){state.kType=+el.value;state.q=null;savePick();render();}
   else if(a==='proot'){state.pRoot=+el.value;state.q=null;savePick();render();}
