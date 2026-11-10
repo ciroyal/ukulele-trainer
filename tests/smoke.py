@@ -41,6 +41,8 @@ def go(pg, mode):
               'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
     pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
     if pg.evaluate('state.mode') != mode:
+        if pg.locator(f'[data-act="tab"][data-v="{mode}"]').count() == 0:
+            pg.click('[data-act="tab"][data-practice="1"]')     # Übungen liegen hinter dem Reiter "Üben"
         pg.click(f'[data-act="tab"][data-v="{mode}"]')
 
 def make_seq_wav(name, midis, dur=0.9):
@@ -189,7 +191,7 @@ try:
         chk = pg.evaluate("""(function(){var bad=[];
           Object.keys(INSTR).forEach(function(id){useInstrument(id);INSTR[id].chords.forEach(function(c){
             var ns=[];c.f.forEach(function(f,s){if(f>=0){var n=noteAt(s,f);if(ns.indexOf(n)<0)ns.push(n);}});
-            var want=[c.r,(c.r+(c.q==='m'?3:4))%12,(c.r+7)%12].concat(c.q==='7'?[(c.r+10)%12]:[]);
+            var want=[c.r,(c.r+((c.q==='m'||c.q==='dim')?3:4))%12,(c.r+(c.q==='dim'?6:7))%12].concat(c.q==='7'?[(c.r+10)%12]:[]);
             // Beim Septakkord darf die Quinte fehlen (Standardgriff C7 auf der Gitarre: x32310)
             var wantNoFifth=want.filter(function(n){return !(c.q==='7'&&n===(c.r+7)%12);});
             var okSet=ns.slice().sort().join()===want.slice().sort().join()||(c.q==='7'&&ns.slice().sort().join()===wantNoFifth.slice().sort().join());
@@ -217,18 +219,18 @@ try:
         go(pg, 'cmap')
         pg.select_option('select[data-act="kroot"]', '0'); pg.select_option('select[data-act="ktype"]', '0')
         names = pg.evaluate("chordsInKey().inKey.map(function(k){return INSTR.uke.chords[k].n}).sort().join(' ')")
-        check('Tonart C-Dur: passende Akkorde', names == 'Am C Dm Em F G G7', names)
-        check('Karte gruppiert (In C-Dur, Weitere eingeklappt)', 'In C-Dur' in pg.inner_text('#root') and pg.locator('[data-act="more"]').count() == 1 and pg.locator('[data-act="csel"]').count() == 7)
+        check('Tonart C-Dur: passende Akkorde', names == 'Am C Dm Em F G G7 H°', names)
+        check('Karte gruppiert (In C-Dur, Weitere eingeklappt)', 'In C-Dur' in pg.inner_text('#root') and pg.locator('[data-act="more"]').count() == 1 and pg.locator('[data-act="csel"]').count() == 8)
         pg.click('[data-act="more"]')
-        check('Weitere Akkorde klappen als Knöpfe auf (gleiches Design)', pg.locator('[data-act="csel"]').count() == 36 and pg.locator('[data-act="csel"]').nth(1).evaluate("e=>e.className")==pg.locator('[data-act="csel"]').last.evaluate("e=>e.className"))
+        check('Weitere Akkorde klappen als Knöpfe auf (gleiches Design)', pg.locator('[data-act="csel"]').count() == 48 and pg.locator('[data-act="csel"]').nth(1).evaluate("e=>e.className")==pg.locator('[data-act="csel"]').last.evaluate("e=>e.className"))
         pg.click('[data-act="csel"]:text-is("D")')
         check('Weiterer Akkord per Knopf wählbar', pg.evaluate("INSTR.uke.chords[state.cSel].n")=='D' and 'D-Dur' in pg.inner_text('.card .prompt'))
         pg.click('[data-act="more"]')
-        check('Weitere Akkorde lassen sich wieder einklappen', pg.locator('[data-act="csel"]').count() == 7)
+        check('Weitere Akkorde lassen sich wieder einklappen', pg.locator('[data-act="csel"]').count() == 8)
         go(pg, 'cname')
-        check('Akkord erkennen: nur passende Antworten', pg.locator('.ans .btn').count() == 7, str(pg.locator('.ans .btn').count()))
+        check('Akkord erkennen: nur passende Antworten', pg.locator('.ans .btn').count() == 8, str(pg.locator('.ans .btn').count()))
         drawn = pg.evaluate("(function(){var s={};for(var i=0;i<60;i++){newChordQ();s[INSTR.uke.chords[state.q.i].n]=1;}return Object.keys(s).sort().join(' ')})()")
-        check('Akkord-Aufgaben nur aus der Tonart', set(drawn.split()) <= set('Am C Dm Em F G G7'.split()), drawn)
+        check('Akkord-Aufgaben nur aus der Tonart', set(drawn.split()) <= set('Am C Dm Em F G G7 H°'.split()), drawn)
         pg.select_option('select[data-act="kroot"]', '-1')
         # Stufenakkorde: Aufbau der Dreiklänge aus der Tonleiter
         tri = pg.evaluate("""(function(){function s(r,t){return [0,1,2,3,4,5,6].map(function(d){var x=triadAt(r,t,d);return x.roman+' '+x.name;}).join(', ');}
@@ -241,7 +243,7 @@ try:
         pg.click('[data-act="dsel"][data-v="3"]')
         check('Stufe IV zeigt F mit Griff', 'IV: F' in pg.inner_text('#root') and pg.locator('.dot').count() == 4, str(pg.locator('.dot').count()))
         pg.click('[data-act="dsel"][data-v="6"]')
-        check('Stufe vii° ohne Griff', 'vermindert' in pg.inner_text('#root'))
+        check('Stufe vii° zeigt H° mit Griff', 'vii°: H°' in pg.inner_text('#root') and pg.locator('.dot').count() >= 3, str(pg.locator('.dot').count()))
         go(pg, 'cbuild')
         pg.evaluate("state.kRoot=0;state.kType=0;state.q={kind:'build',root:0,t:0,d:1,tri:triadAt(0,0,1),sel:[],done:false,ok:false,picked:null,id:81};render()")   # ii in C-Dur = Dm
         for n in ('D', 'F'):
@@ -326,9 +328,9 @@ try:
         for wavname, midis, target, inst, expect in [('c_uke.wav', [67, 60, 64, 72], 0, 'uke', True),
                                                      ('am_uke.wav', [69, 69, 60, 64], 0, 'uke', False),
                                                      ('am_gtr.wav', [45, 52, 57, 60, 64], 21, 'gtr', True),
-                                                     ('c7_uke.wav', [67, 60, 64, 70], 24, 'uke', True),    # C7 gespielt, Ziel C7
+                                                     ('c7_uke.wav', [67, 60, 64, 70], 36, 'uke', True),    # C7 gespielt, Ziel C7
                                                      ('c7b_uke.wav', [67, 60, 64, 70], 0, 'uke', False),  # C7 gespielt, Ziel C
-                                                     ('cb_uke.wav', [67, 60, 64, 72], 24, 'uke', False)]:  # C gespielt, Ziel C7
+                                                     ('cb_uke.wav', [67, 60, 64, 72], 36, 'uke', False)]:  # C gespielt, Ziel C7
             b = launch(p, make_chord_wav(wavname, midis))
             errors, bad = [], []
             pg = new_page(b, errors, bad)
