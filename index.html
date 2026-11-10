@@ -12,7 +12,6 @@
 body{margin:0;background:var(--bg);color:var(--text);font-family:system-ui,-apple-system,"Segoe UI",sans-serif;font-size:16px;line-height:1.5}
 #root{max-width:480px;margin:0 auto;padding:16px 16px 40px}
 h1{font-size:22px;font-weight:500;margin:0}
-.sub{color:var(--muted);font-size:14px;margin:0 0 12px}
 .tabs{display:grid;grid-template-columns:repeat(5,1fr);gap:4px;margin:0 0 12px}
 button,select{font:inherit;color:var(--text)}
 .tab{padding:8px 2px;border:0.5px solid var(--line);background:var(--card);border-radius:8px;font-size:13px;cursor:pointer}
@@ -110,6 +109,22 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 .badge{display:inline-block;font-size:12px;color:var(--accentText);background:var(--accentbg);border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:2px}
 .btn:disabled{opacity:.45;cursor:default}
 .tabs.top .tab{font-size:12px;padding:8px 1px}
+/* Kopfbereich: grünes Banner mit großem Instrumentnamen und der Stimmung daneben */
+.head{margin:-16px -16px 14px;padding:22px 16px 18px;background:linear-gradient(135deg,#0f8a6a,#27b58a);color:#fff;border-radius:0 0 26px 26px}
+.ttl{display:flex;align-items:center;gap:12px;min-width:0}
+h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
+.tun{font-size:12px;line-height:1.3;opacity:.95;border-left:1px solid rgba(255,255,255,.45);padding-left:10px}
+.tun small{display:block;font-size:11px;opacity:.8}
+.ibtn{background:rgba(255,255,255,.2)!important;color:#fff!important;border-color:transparent!important}
+.ibtn.on{background:rgba(255,255,255,.4)!important}
+.card{border-radius:16px;border:none;box-shadow:0 1px 3px rgba(0,0,0,.08),0 6px 16px rgba(15,138,106,.07)}
+.tabs.top{border-bottom:1px solid var(--line);gap:0}
+.tabs.top .tab{border:none;border-radius:0;background:transparent;border-bottom:3px solid transparent;padding:10px 0}
+.tabs.top .tab.on{border-bottom-color:var(--accent);color:var(--accentText);background:transparent;font-weight:700}
+.stage{border-left:6px solid var(--line)}.stage.next{border-left-color:var(--accent)}
+.stage.next{border-color:transparent;border-left-color:var(--accent)}
+.bar{height:12px;border-radius:6px}.bar i{border-radius:6px;background:linear-gradient(90deg,#27b58a,#0f8a6a)}
+.btn.pri{border-radius:12px}
 </style>
 </head>
 <body>
@@ -119,7 +134,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 20:00';
+var VERSION='2026-11-10 · 20:30';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1213,7 +1228,7 @@ function render(){
   if(state.round&&state.round.mode!==state.mode)cancelRound();
   // Kopfzeile: Titel links, Einstellungen (Instrument wählen) oben rechts
   var fork='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8a4 4 0 0 0 8 0V3"/><path d="M12 15v6"/></svg>';
-  var o='<div class="head"><h1>'+INSTR[state.inst].name+'</h1><div class="tools">'+
+  var o='<div class="head"><div class="ttl"><h1>'+INSTR[state.inst].name+'</h1><div class="tun"><small>Stimmung</small>'+INSTR[state.inst].tuning+'</div></div><div class="tools">'+
     '<button class="ibtn fork'+(state.mode==='tune'?' on':'')+'" data-act="grp" data-v="tune" aria-label="Stimmgerät" title="Stimmgerät">'+fork+'</button>'+
     '<button class="ibtn gear'+(state.settings?' on':'')+'" data-act="settings" aria-label="Einstellungen" aria-expanded="'+(state.settings?'true':'false')+'">⚙</button></div></div>';
   if(state.settings){
@@ -1222,7 +1237,7 @@ function render(){
     o+='</div><p class="hint" style="margin:12px 0 8px">Tonnamen</p><div class="inst" style="margin:0"><button class="btn'+(INTL?'':' on')+'" data-act="naming" data-v="de">Deutsch (H, Cis)</button><button class="btn'+(INTL?' on':'')+'" data-act="naming" data-v="int">International (B, C♯)</button></div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Stand der App: '+VERSION+'</p></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
-  o+='<p class="sub">Stimmung '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
+  o+='<div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
   shown.forEach(function(x){o+='<button class="tab'+(x===g?' on':'')+'" data-act="grp" data-v="'+x.id+'">'+x.name+'</button>';});
   o+='</div>';
   var base=g.modes.filter(function(m){return !m[2];}),ex=g.modes.filter(function(m){return m[2];});
