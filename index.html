@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<link rel="icon" href="data:,">
 <title>Ukulele-Trainer</title>
 <style>
 :root{--bg:#faf9f5;--card:#ffffff;--text:#1f1e1d;--muted:#6b6a65;--line:#d9d6cc;--accent:#0F6E56;--accentbg:#E1F5EE;--accentText:#085041;--open:#534AB7;--openbg:#EEEDFE;--openText:#3C3489;--ok:#3B6D11;--okbg:#EAF3DE;--okText:#27500A;--bad:#A32D2D;--badbg:#FCEBEB;--badText:#791F1F;--sharp:#F1EFE8;--sharpText:#5F5E5A}
@@ -79,17 +80,41 @@ function noteAt(s,f){return (STR[s].pc+f)%12;}
 function isNat(n){return NOTES[n].indexOf('#')<0;}
 
 var stats={total:0,correct:0,best:0,notes:{}};
-try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.notes)stats=p;}}catch(e){}
-function save(){try{localStorage.setItem(KEY,JSON.stringify(stats));}catch(e){}}
+try{var raw=localStorage.getItem(KEY);if(raw){var p=JSON.parse(raw);if(p&&p.notes)stats=p;}}catch(e){/* Speicher gesperrt oder Daten kaputt: mit leerer Statistik starten */}
+function save(){try{localStorage.setItem(KEY,JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
-var state={mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,tuneSel:'auto',mic:{on:false,err:'',stable:0,cool:0}};
-var micH={stream:null,ctx:null,an:null,buf:null,timer:null};
+// Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
+var state={mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+  tune:{sel:'auto',hist:[],last:0,ok:0},   // Stimmgerät: gewählte Saite, letzte Messwerte, Zeitpunkt, Treffer in Folge
+  mic:{on:false,err:'',stable:0,cool:0}};  // Mikrofon: stable = gleiche richtige Messungen in Folge, cool = Sperre bis Zeitpunkt
+// Browser-Objekte (Audio, Mikrofon, Timer). Getrennt von `state`, weil sie nicht in Text umgewandelt werden dürfen.
+var dev={ac:null,stream:null,ctx:null,an:null,buf:null,timer:null};
 
+// ===== Ton ausgeben =====
+// Spielt den Ton der Saite s im Bund f. Bei laufendem Mikrofon bleibt es still, sonst hört sich die App selbst.
+function play(s,f){
+  if(!state.sound||state.mic.on)return;
+  try{
+    dev.ac=dev.ac||new (window.AudioContext||window.webkitAudioContext)();
+    if(dev.ac.state==='suspended')dev.ac.resume();
+    var o=dev.ac.createOscillator(),g=dev.ac.createGain(),t=dev.ac.currentTime;
+    o.type='triangle';o.frequency.value=STR[s].f*Math.pow(2,f/12);
+    g.gain.setValueAtTime(0.0001,t);
+    g.gain.exponentialRampToValueAtTime(0.35,t+0.01);
+    g.gain.exponentialRampToValueAtTime(0.0001,t+1.2);
+    o.connect(g);g.connect(dev.ac.destination);o.start(t);o.stop(t+1.3);
+  }catch(e){/* Audio nicht verfügbar: die App funktioniert auch ohne Ton */}
+}
+
+// ===== Tonhöhe erkennen =====
+// Tonhöhe in Hz aus einem Audio-Ausschnitt (NSDF-Verfahren wie bei McLeod/MPM: Selbstähnlichkeit des Signals,
+// der erste hohe Gipfel ist die Periode). Gibt null zurück, wenn kein klarer Ton da ist.
+// Suchbereich 200–1100 Hz deckt alle Ukulele-Töne bis Bund 12 ab (tiefstes C4 = 262 Hz, höchstes A5 = 880 Hz).
 function detect(buf,sr){
   var n=buf.length,i,rms=0;
   for(i=0;i<n;i++)rms+=buf[i]*buf[i];
   rms=Math.sqrt(rms/n);
-  if(rms<0.012)return null;
+  if(rms<0.012)return null; // zu leise (Rauschen)
   var minLag=Math.floor(sr/1100),maxLag=Math.min(Math.floor(sr/200),n-2),nsdf=[],tau;
   for(tau=minLag-1;tau<=maxLag+1;tau++){
     var acf=0,m=0;
@@ -100,73 +125,25 @@ function detect(buf,sr){
   for(tau=minLag;tau<=maxLag;tau++){
     if(nsdf[tau]>0&&nsdf[tau]>nsdf[tau-1]&&nsdf[tau]>=nsdf[tau+1]){peaks.push(tau);if(nsdf[tau]>mx)mx=nsdf[tau];}
   }
-  if(mx<0.8)return null;
+  if(mx<0.8)return null; // Signal nicht periodisch genug (Rauschen, Akkord)
   for(i=0;i<peaks.length;i++){
+    // Erster Gipfel ab 90 % des höchsten, sonst wählt man leicht eine Oktave zu tief (Vielfaches der Periode)
     if(nsdf[peaks[i]]>=0.9*mx){
       var t=peaks[i],y0=nsdf[t-1],y1=nsdf[t],y2=nsdf[t+1],d=y0-2*y1+y2;
-      var delta=d!==0?0.5*(y0-y2)/d:0;
+      var delta=d!==0?0.5*(y0-y2)/d:0; // Parabel durch 3 Punkte: Genauigkeit unter einem Abtastwert
       return sr/(t+delta);
     }
   }
   return null;
 }
 
-var TN={hist:[],last:0,ok:0};
-function tnEl(id){return document.getElementById(id);}
-function tnActive(idx){
-  var bs=document.querySelectorAll('[data-act="tstr"]');
-  for(var i=0;i<bs.length;i++){
-    var v=bs[i].getAttribute('data-v');
-    if(idx!==null&&v===String(idx))bs[i].classList.add('det');else bs[i].classList.remove('det');
-  }
-}
-function tickTuner(f){
-  var note=tnEl('tn-note');
-  if(!note)return;
-  var now=Date.now();
-  if(!f){
-    if(now-TN.last>700){
-      TN.hist=[];TN.ok=0;
-      note.textContent='–';
-      tnEl('tn-hz').textContent='Zupfe eine leere Saite';
-      tnEl('tn-msg').textContent='';tnEl('tn-msg').className='tn-msg';
-      tnEl('tn-mk').style.left='50%';tnEl('tn-mk').className='';
-      tnActive(null);
-    }
-    return;
-  }
-  TN.last=now;TN.hist.push(f);
-  if(TN.hist.length>5)TN.hist.shift();
-  var s=TN.hist.slice().sort(function(a,b){return a-b;}),fm=s[Math.floor(s.length/2)];
-  var idx,i;
-  if(state.tuneSel==='auto'){
-    var bd=1e9;idx=0;
-    for(i=0;i<4;i++){var d=Math.abs(1200*Math.log2(fm/STR[i].f));if(d<bd){bd=d;idx=i;}}
-  }else idx=+state.tuneSel;
-  var cents=1200*Math.log2(fm/STR[idx].f);
-  note.textContent=STR[idx].n;
-  tnEl('tn-hz').textContent=fm.toFixed(1)+' Hz · Ziel '+STR[idx].f.toFixed(1)+' Hz';
-  var c=Math.round(cents),clamp=Math.max(-50,Math.min(50,cents));
-  var mk=tnEl('tn-mk');
-  mk.style.left=(50+clamp)+'%';
-  var good=Math.abs(cents)<=5;
-  TN.ok=good?TN.ok+1:0;
-  mk.className=good?'good':'';
-  var msg,cls='tn-msg';
-  if(Math.abs(cents)>300)msg='Zu weit entfernt. Prüfe, ob du die richtige Saite zupfst.';
-  else if(good){if(TN.ok>=3){msg='Gestimmt!';cls+=' ok';}else msg='Fast…';}
-  else if(cents<0)msg='Zu tief ('+c+' ct): Saite etwas spannen';
-  else msg='Zu hoch (+'+c+' ct): Saite etwas lockern';
-  var m=tnEl('tn-msg');m.textContent=msg;m.className=cls;
-  tnActive(idx);
-}
-
+// ===== Mikrofon =====
 function stopMic(){
-  if(micH.timer)clearInterval(micH.timer);
-  micH.timer=null;
-  if(micH.stream)micH.stream.getTracks().forEach(function(t){t.stop();});
-  try{if(micH.ctx)micH.ctx.close();}catch(e){}
-  micH.stream=null;micH.ctx=null;micH.an=null;
+  if(dev.timer)clearInterval(dev.timer);
+  dev.timer=null;
+  if(dev.stream)dev.stream.getTracks().forEach(function(t){t.stop();});
+  try{if(dev.ctx)dev.ctx.close();}catch(e){/* war schon geschlossen */}
+  dev.stream=null;dev.ctx=null;dev.an=null;
   state.mic.on=false;state.mic.stable=0;
 }
 function startMic(){
@@ -177,17 +154,19 @@ function startMic(){
     render();return;
   }
   var ctx=new AC();
-  try{ctx.resume();}catch(e){}
+  try{ctx.resume();}catch(e){/* startet sonst beim ersten Ton */}
+  // Echo-Unterdrückung, Rauschfilter und Auto-Pegel würden gezupfte Töne verfälschen, daher aus
   navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(stream){
-    micH.stream=stream;micH.ctx=ctx;
+    dev.stream=stream;dev.ctx=ctx;
     var src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();
-    an.fftSize=2048;src.connect(an);
-    micH.an=an;micH.buf=new Float32Array(an.fftSize);
-    state.mic.on=true;state.mic.stable=0;state.mic.cool=Date.now()+500;
-    micH.timer=setInterval(micTick,60);
+    an.fftSize=2048; // ≈ 43 ms bei 48 kHz: reicht für mindestens 8 Perioden des tiefsten Tons
+    src.connect(an);
+    dev.an=an;dev.buf=new Float32Array(an.fftSize);
+    state.mic.on=true;state.mic.stable=0;state.mic.cool=Date.now()+500; // kurze Sperre, damit nichts sofort zählt
+    dev.timer=setInterval(micTick,60); // ca. 16 Messungen pro Sekunde
     render();
   }).catch(function(err){
-    try{ctx.close();}catch(e){}
+    try{ctx.close();}catch(e){/* war schon geschlossen */}
     state.mic.err=(err&&err.name==='NotAllowedError')
       ?'Mikrofon-Zugriff blockiert. In der eingebetteten Ansicht ist das oft gesperrt. Öffne die Seite in einem eigenen Browser-Tab oder erlaube das Mikrofon in den Browser-Einstellungen.'
       :'Mikrofon nicht verfügbar. Prüfe, ob ein Mikrofon angeschlossen ist.';
@@ -196,9 +175,9 @@ function startMic(){
 }
 function micTick(){
   var m=state.mic;
-  if(!micH.an)return;
-  micH.an.getFloatTimeDomainData(micH.buf);
-  var f=detect(micH.buf,micH.ctx.sampleRate);
+  if(!dev.an)return;
+  dev.an.getFloatTimeDomainData(dev.buf);
+  var f=detect(dev.buf,dev.ctx.sampleRate);
   if(state.mode==='tune'){tickTuner(f);return;}
   var liveEl=document.getElementById('live'),mk=document.getElementById('mk');
   if(!f){m.stable=0;if(liveEl)liveEl.textContent='–';return;}
@@ -207,30 +186,68 @@ function micTick(){
   if(mk)mk.style.left=(50+cents)+'%';
   var q=state.q;
   if(state.mode!=='find'||!q||q.done||Date.now()<m.cool)return;
+  // Zählt nur der genau richtige Ton (inklusive Oktave). 5 Messungen in Folge ≈ 0,3 s filtern Ausreißer heraus.
   if(mi===STR[q.s].m+q.f)m.stable++;else m.stable=0;
   if(m.stable>=5){
     q.done=true;q.ok=true;q.picked={s:q.s,f:q.f};
     record(q.n,true);m.stable=0;render();
-    var id=q.id;
-    setTimeout(function(){if(state.q&&state.q.id===id&&state.mode==='find')next();},1200);
+    autoAdvance(q,'find',1200);
   }
 }
 
-var ac=null;
-function play(s,f){
-  if(!state.sound||state.mic.on)return;
-  try{
-    ac=ac||new (window.AudioContext||window.webkitAudioContext)();
-    if(ac.state==='suspended')ac.resume();
-    var o=ac.createOscillator(),g=ac.createGain(),t=ac.currentTime;
-    o.type='triangle';o.frequency.value=STR[s].f*Math.pow(2,f/12);
-    g.gain.setValueAtTime(0.0001,t);
-    g.gain.exponentialRampToValueAtTime(0.35,t+0.01);
-    g.gain.exponentialRampToValueAtTime(0.0001,t+1.2);
-    o.connect(g);g.connect(ac.destination);o.start(t);o.stop(t+1.3);
-  }catch(e){}
+// ===== Stimmgerät-Anzeige =====
+function tnEl(id){return document.getElementById(id);}
+function tnActive(idx){
+  var bs=document.querySelectorAll('[data-act="tstr"]');
+  for(var i=0;i<bs.length;i++){
+    var v=bs[i].getAttribute('data-v');
+    if(idx!==null&&v===String(idx))bs[i].classList.add('det');else bs[i].classList.remove('det');
+  }
+}
+// Wird bei jeder Messung aufgerufen (f = Hz oder null). Aktualisiert die Anzeige direkt, ohne die ganze Seite neu zu zeichnen.
+function tickTuner(f){
+  var note=tnEl('tn-note');
+  if(!note)return;
+  var now=Date.now();
+  if(!f){
+    if(now-state.tune.last>700){ // Anzeige erst nach 0,7 s ohne Ton zurücksetzen, damit sie bei kurzen Aussetzern nicht flackert
+      state.tune.hist=[];state.tune.ok=0;
+      note.textContent='–';
+      tnEl('tn-hz').textContent='Zupfe eine leere Saite';
+      tnEl('tn-msg').textContent='';tnEl('tn-msg').className='tn-msg';
+      tnEl('tn-mk').style.left='50%';tnEl('tn-mk').className='';
+      tnActive(null);
+    }
+    return;
+  }
+  state.tune.last=now;state.tune.hist.push(f);
+  if(state.tune.hist.length>5)state.tune.hist.shift(); // Median der letzten 5 Werte beruhigt die Anzeige
+  var s=state.tune.hist.slice().sort(function(a,b){return a-b;}),fm=s[Math.floor(s.length/2)];
+  var idx,i;
+  if(state.tune.sel==='auto'){
+    var bd=1e9;idx=0;
+    for(i=0;i<4;i++){var d=Math.abs(1200*Math.log2(fm/STR[i].f));if(d<bd){bd=d;idx=i;}}
+  }else idx=+state.tune.sel;
+  var cents=1200*Math.log2(fm/STR[idx].f);
+  note.textContent=STR[idx].n;
+  tnEl('tn-hz').textContent=fm.toFixed(1)+' Hz · Ziel '+STR[idx].f.toFixed(1)+' Hz';
+  var c=Math.round(cents),clamp=Math.max(-50,Math.min(50,cents));
+  var mk=tnEl('tn-mk');
+  mk.style.left=(50+clamp)+'%';
+  var good=Math.abs(cents)<=5; // ±5 Cent gelten als gestimmt (für das Ohr kaum hörbar)
+  state.tune.ok=good?state.tune.ok+1:0;
+  mk.className=good?'good':'';
+  var msg,cls='tn-msg';
+  // mehr als drei Halbtöne daneben: vermutlich falsche Saite
+  if(Math.abs(cents)>300)msg='Zu weit entfernt. Prüfe, ob du die richtige Saite zupfst.';
+  else if(good){if(state.tune.ok>=3){msg='Gestimmt!';cls+=' ok';}else msg='Fast…';}
+  else if(cents<0)msg='Zu tief ('+c+' ct): Saite etwas spannen';
+  else msg='Zu hoch (+'+c+' ct): Saite etwas lockern';
+  var m=tnEl('tn-msg');m.textContent=msg;m.className=cls;
+  tnActive(idx);
 }
 
+// ===== Quiz-Logik =====
 function pool(){
   var r=[];
   for(var s=0;s<4;s++)for(var f=0;f<=state.maxFret;f++){
@@ -361,7 +378,7 @@ function viewName(){
 }
 
 function viewTune(){
-  var mic=state.mic,sel=state.tuneSel;
+  var mic=state.mic,sel=state.tune.sel;
   var o='<div class="card"><p class="prompt">Stimmgerät</p><p class="hint" style="margin:4px 0 0">Standard-Stimmung G–C–E–A (High-G). Zupfe eine leere Saite und stimme, bis der Balken in der grünen Mitte steht.</p></div>';
   o+='<div class="tstrs">';
   [['auto','Auto'],['0','G'],['1','C'],['2','E'],['3','A']].forEach(function(b){
@@ -402,6 +419,11 @@ function render(){
   document.getElementById('root').innerHTML=o;
 }
 
+// Springt nach einer richtigen Antwort zur nächsten Frage, außer der Nutzer hat inzwischen selbst weitergeschaltet oder den Tab gewechselt.
+function autoAdvance(q,mode,ms){
+  var id=q.id;
+  setTimeout(function(){if(state.q&&state.q.id===id&&state.mode===mode)next();},ms);
+}
 function next(){newQ();state.mic.stable=0;state.mic.cool=Date.now()+1200;render();}
 
 function handle(el){
@@ -410,7 +432,7 @@ function handle(el){
   else if(act==='next'){next();}
   else if(act==='tstr'){
     var tv=el.getAttribute('data-v');
-    state.tuneSel=tv;
+    state.tune.sel=tv;
     if(tv!=='auto'&&!state.mic.on)play(+tv,0);
     render();
   }
@@ -433,7 +455,7 @@ function handle(el){
       q.ok=(s===q.s&&noteAt(s,f)===q.n);
       record(q.n,q.ok);
       render();
-      if(q.ok){var id=q.id;setTimeout(function(){if(state.q&&state.q.id===id&&state.mode==='find')next();},900);}
+      if(q.ok)autoAdvance(q,'find',900);
     }
   }
   else if(act==='ans'){
@@ -444,7 +466,7 @@ function handle(el){
     qq.done=true;qq.picked=n;qq.ok=(n===qq.n);
     record(qq.n,qq.ok);
     render();
-    if(qq.ok){var id2=qq.id;setTimeout(function(){if(state.q&&state.q.id===id2&&state.mode==='name')next();},900);}
+    if(qq.ok)autoAdvance(qq,'name',900);
   }
 }
 var root=document.getElementById('root');
