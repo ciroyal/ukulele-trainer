@@ -43,7 +43,7 @@ def set_inst(pg, inst):
 
 def go(pg, mode):
     """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
-    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords','cdeg':'chords','cbuild':'chords','cstep':'chords','path':'path',
+    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords','cdeg':'chords','tnotes':'notes','tscales':'scales','tchords':'chords','cbuild':'chords','cstep':'chords','path':'path',
               'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
     pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
     if pg.evaluate('state.mode') != mode:
@@ -101,7 +101,7 @@ try:
         b = launch(p, a440)
         pg = new_page(b, errors, bad)
 
-        for v in ['path', 'map', 'find', 'name', 'cmap', 'cdeg', 'cbuild', 'cstep', 'cfind', 'cname', 'cplay', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
+        for v in ['path', 'map', 'tnotes', 'find', 'name', 'cmap', 'cdeg', 'tchords', 'cbuild', 'cstep', 'cfind', 'cname', 'cplay', 'smap', 'tscales', 'sfind', 'sname', 'splay', 'tune', 'stats']:
             go(pg, v)
             check('Seite ' + v, pg.evaluate('state.mode') == v and pg.locator('#root .card, #root svg').count() > 0)
 
@@ -310,9 +310,20 @@ try:
         go(pg, 'path')
         check('Lernpfad zeigt 3 Stufen', pg.locator('.stage').count() == 3 and 'Als Nächstes' in pg.inner_text('#root'))
         txt = pg.inner_text('#root')
+        check('Lernpfad: Schritte statt Stufen, 7 Stammtöne', 'Schritt 1 · Töne' in txt and 'Stufe 1' not in txt and 'von 7 Stammtöne' in txt and 'Zwischentöne:' in txt and 'Ganzton' not in txt and 'Ganz-Ganz' not in txt and 'Du lernst, wo welcher Ton' in txt)
+        # Theorie als eigener Teil je Schritt
+        go(pg, 'tnotes')
+        tx = pg.inner_text('#root')
+        check('Theorie Töne', all(k in tx for k in ['Stammtöne und Zwischentöne', 'Halbton und Ganzton', 'Oktave', 'Leere Saiten: G C E A']) and pg.locator('.theory').count() == 4, tx[:80])
+        go(pg, 'tscales')
+        tx = pg.inner_text('#root')
+        check('Theorie Tonleitern', 'Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb' in tx and 'C-Dur: C D E F G A H C' in tx and 'A-Moll: A H C D E F G A' in tx and 'C-Dur-Pentatonik ist C D E G A' in tx and 'A-Moll-Pentatonik ist A C D E G' in tx, tx[:200])
+        go(pg, 'tchords')
+        tx = pg.inner_text('#root')
+        check('Theorie Akkorde', 'In C-Dur: I C, ii Dm, iii Em, IV F, V G, vi Am, vii° H°' in tx and 'In A-Moll: i Am, ii° H°, III C, iv Dm, v Em, VI F, VII G' in tx and 'G7 in C-Dur ist G H D F' in tx, tx[:200])
+        go(pg, 'path')
         pg.locator('.stage h2').nth(0).click()
-        check('Lernpfad: Schritte statt Stufen, 7 Stammtöne', 'Schritt 1 · Töne' in txt and 'Stufe 1' not in txt and 'von 7 Stammtöne' in txt and 'Zwischentöne:' in txt and 'Ganzton' in txt and 'Dominantseptakkord' in txt)
-        check('Lernpfad: Tipp auf Schritt 1 öffnet Töne', pg.evaluate("state.mode")=='map', pg.evaluate("state.mode"))
+        check('Lernpfad: Tipp auf Schritt 1 öffnet Töne (zuletzt benutzte Seite)', pg.evaluate("groupOf(state.mode).id")=='notes' and pg.evaluate("state.mode")==pg.evaluate("state.gm.notes"), pg.evaluate("state.mode"))
         go(pg, 'path'); pg.locator('.stage h2').nth(2).click()
         check('Lernpfad: Tipp auf Schritt 3 öffnet Akkorde (zuletzt benutzte Seite)', pg.evaluate("groupOf(state.mode).id")=='chords' and pg.evaluate("state.mode")==pg.evaluate("state.gm.chords"), pg.evaluate("state.mode"))
         go(pg, 'path')

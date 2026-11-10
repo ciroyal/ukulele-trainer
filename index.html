@@ -20,6 +20,7 @@ button,select{font:inherit;color:var(--text)}
 .inst{display:grid;grid-template-columns:repeat(2,1fr);gap:6px;margin:0 0 10px}
 .inst .btn{padding:8px 0}
 .head{display:flex;align-items:center;justify-content:space-between;margin:0 0 6px}
+.theory p{font-size:15px;margin:6px 0 0}
 .titlerow{display:flex;align-items:center;gap:12px}
 .play{display:flex;align-items:center;justify-content:center;width:38px;height:38px;padding:0 0 0 2px;border:0.5px solid var(--accent);background:var(--accentbg);color:var(--accentText);border-radius:50%;cursor:pointer;flex:none}
 .head .tools{display:flex;gap:8px}
@@ -116,7 +117,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 14:10';
+var VERSION='2026-11-10 · 14:30';
 var NOTES=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
 var FLATS=['','Des','','Es','','','Ges','','As','','B',''];
 var NAMES=NOTES.map(function(n,i){return FLATS[i]?n+'/'+FLATS[i]:n;});
@@ -888,6 +889,63 @@ function viewChordStep(){
   return keySelects('rand')+'<div class="card"><p class="prompt">'+txt+'</p>'+fb+btn+'</div>'+a;
 }
 
+// ----- Theorie: Erklärungen zu jedem Schritt -----
+// Karte mit Überschrift und Absätzen (Text darf einfaches HTML enthalten)
+function theoryCard(title,paras){
+  return '<div class="card theory"><p class="prompt" style="font-size:17px">'+title+'</p>'+paras.map(function(t){return '<p>'+t+'</p>';}).join('')+'</div>';
+}
+function noteList(notes){return notes.map(noteName).join(' ');}
+function viewTheoryNotes(){
+  var I=INSTR[state.inst],open=I.strings.map(function(s){return s.n;}).join(' ');
+  return theoryCard('Stammtöne und Zwischentöne',[
+    'Es gibt 7 Stammtöne: C D E F G A H. Auf dem Klavier sind es die weißen Tasten.',
+    'Dazu kommen 5 Zwischentöne (schwarze Tasten): Cis/Des, Dis/Es, Fis/Ges, Gis/As und Ais/B. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit -is ist er erhöht, mit Des, Es, Ges, As, B erniedrigt.',
+    'H ist das internationale B, und B ist das internationale Bb.'])+
+  theoryCard('Halbton und Ganzton',[
+    'Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton.',
+    'Zwischen E und F sowie zwischen H und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'])+
+  theoryCard('Oktave',[
+    'Nach 12 Halbtönen wiederholen sich die Tonnamen, nur höher. Der Abstand heißt Oktave. Auf dem 12. Bund klingt eine Saite eine Oktave höher als leer.'])+
+  theoryCard('Die Saiten ('+I.name+')',[
+    'Leere Saiten: '+open+'. Jeder Bund darüber ist einen Halbton höher. Aus den leeren Saiten kannst du also jeden Ton abzählen.']);
+}
+function viewTheoryScales(){
+  var cmaj=scaleNotes(0,SCALES[0]),amin=scaleNotes(9,SCALES[1]);
+  var cp=scaleNotes(0,SCALES[2]),ap=scaleNotes(9,SCALES[3]);
+  return theoryCard('Was ist eine Tonleiter?',[
+    'Eine Tonleiter ordnet Töne von einem Grundton aus nach einem festen Muster aus Ganz- und Halbtonschritten. Die Töne heißen Stufen und werden von 1 bis 7 gezählt. Grundton plus Tonleiter-Art ergibt die Tonart, zum Beispiel C-Dur.'])+
+  theoryCard('Dur',[
+    'Muster: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb.',
+    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.'])+
+  theoryCard('Moll (natürlich)',[
+    'Muster: Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz.',
+    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'])+
+  theoryCard('Parallele Tonart',[
+    'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'])+
+  theoryCard('Pentatonik',[
+    'Fünf Töne statt sieben, ohne Halbtonschritte. Dur-Pentatonik lässt die 4. und 7. Stufe weg: C-Dur-Pentatonik ist '+noteList(cp)+'.',
+    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.']);
+}
+function viewTheoryChords(){
+  var cd=[0,1,2,3,4,5,6].map(function(d){return triadAt(0,0,d);}),am=[0,1,2,3,4,5,6].map(function(d){return triadAt(9,1,d);});
+  function row(t){return t.map(function(x){return x.roman+' '+x.name;}).join(', ');}
+  return theoryCard('Dreiklang',[
+    'Ein Dreiklang entsteht, wenn du auf einem Ton jeden zweiten Ton der Tonleiter stapelst: Grundton (1.), Terz (3.) und Quinte (5.). In C-Dur ergibt das ab dem C: C E G.'])+
+  theoryCard('Dur, Moll, vermindert',[
+    'Dur: große Terz (4 Halbtöne) und Quinte (7). Beispiel C E G.',
+    'Moll: kleine Terz (3 Halbtöne) und Quinte (7). Beispiel C Es G.',
+    'Vermindert: kleine Terz (3) und verminderte Quinte (6). Beispiel C Es Ges.'])+
+  theoryCard('Stufenakkorde',[
+    'Baust du auf jeder Stufe einer Tonleiter einen Dreiklang, entstehen die Stufenakkorde. Sie werden mit römischen Ziffern benannt: groß = Dur, klein = Moll, ° = vermindert.',
+    'Dur: I, ii, iii, IV, V, vi, vii°. In C-Dur: '+row(cd)+'.',
+    'Moll (natürlich): i, ii°, III, iv, v, VI, VII. In A-Moll: '+row(am)+'.'])+
+  theoryCard('Dominantseptakkord',[
+    'Ein Dur-Dreiklang mit einer kleinen Septime obendrauf. Er entsteht, wenn du auf der V. Stufe einen vierten Ton stapelst: G7 in C-Dur ist G H D F. Er zieht gern zur I. Stufe hin.',
+    'In Moll wird als V. Stufe oft der Dur-Akkord genommen, in A-Moll also E oder E7.'])+
+  theoryCard('Akkordnamen in der App',[
+    'Nur der Ton = Dur (C), m = Moll (Cm), ° = vermindert (C°), 7 = Dominantseptakkord (C7). Zwischentöne stehen kurz mit -is, zum Beispiel Cis oder Cism. In den Titeln stehen beide Namen.']);
+}
+
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
 // Zählt Einträge einer Statistik-Gruppe, die als sicher gelten: mindestens 3 Antworten, davon 80 % richtig
 function sureCount(bucket,keys){
@@ -899,12 +957,12 @@ function viewPath(){
   var cs=INSTR[state.inst].chords,degKeys=[];
   [0,1].forEach(function(t){for(var d=0;d<7;d++)degKeys.push(degKey(t,triadAt(0,t,d)));});
   var stages=[
-    {group:'notes',title:'Töne',text:'7 Stammtöne und 5 Zwischentöne. Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton. Zwischen E–F und H–C liegt nur ein Halbton.',
+    {group:'notes',title:'Töne',text:'Du lernst, wo welcher Ton auf dem Griffbrett liegt, und findest und erkennst Töne auf den Saiten.',
      done:sureCount('notes',[0,2,4,5,7,9,11]),total:7,unit:'Stammtöne sicher',
      extra:'Zwischentöne: '+sureCount('notes',[1,3,6,8,10])+' von 5 sicher (die Übungen nehmen sie mit „Zwischentöne (#)“ dazu)'},
-    {group:'scales',title:'Tonleitern',text:'Eine Tonleiter wählt Töne nach einem festen Muster aus. Dur: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb. Moll (natürlich): Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz. A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf A.',
+    {group:'scales',title:'Tonleitern',text:'Du lernst Dur, Moll und die Pentatoniken kennen, findest ihre Töne auf dem Griffbrett und spielst sie auf deinem Instrument.',
      done:sureCount('scales',SCALES.map(function(s){return s.id;})),total:SCALES.length,unit:'Tonleiter-Arten sicher'},
-    {group:'chords',title:'Akkorde',text:'Auf jeder Stufe der Tonleiter stapelst du jeden zweiten Ton: 1., 3. und 5. Ton ergeben einen Dreiklang. Aus C-Dur wird so I = C E G, ii = D F A. In Dur sind I, IV und V Dur-Akkorde, ii, iii und vi Moll, vii° ist vermindert. Ein vierter Ton auf der V. Stufe ergibt den Dominantseptakkord (G7). Dazu übst du die Griffe: Dur, Moll, vermindert und Dominantseptakkorde.',
+    {group:'chords',title:'Akkorde',text:'Du baust Dreiklänge aus Tonleitern, lernst die Griffe für Dur, Moll, vermindert und Dominantseptakkorde und spielst sie.',
      done:sureCount('chords',cs.map(function(c){return c.n;}))+sureCount('degrees',degKeys),total:cs.length+degKeys.length,unit:'Akkorde und Stufen sicher'}
   ];
   var next=stages.length-1;
@@ -1002,13 +1060,13 @@ function viewScalePlay(){
 // modes: [Seite, Name, true = Übung]. Übungen erscheinen gesammelt hinter dem Reiter "Üben" in einer eigenen Reihe.
 var GROUPS=[
   {id:'path',name:'Lernen',modes:[['path','Lernen']]},
-  {id:'notes',name:'Töne',modes:[['map','Karte'],['find','Finden',true],['name','Erkennen',true]]},
-  {id:'scales',name:'Tonleitern',modes:[['smap','Karte'],['sfind','Finden',true],['sname','Erkennen',true],['splay','Spielen',true]]},
-  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cdeg','Stufen'],['cbuild','Bauen',true],['cstep','Stufe',true],['cfind','Greifen',true],['cname','Erkennen',true],['cplay','Spielen',true]]},
+  {id:'notes',name:'Töne',modes:[['map','Karte'],['tnotes','Theorie'],['find','Finden',true],['name','Erkennen',true]]},
+  {id:'scales',name:'Tonleitern',modes:[['smap','Karte'],['tscales','Theorie'],['sfind','Finden',true],['sname','Erkennen',true],['splay','Spielen',true]]},
+  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cdeg','Stufen'],['tchords','Theorie'],['cbuild','Bauen',true],['cstep','Stufe',true],['cfind','Greifen',true],['cname','Erkennen',true],['cplay','Spielen',true]]},
   {id:'tune',name:'Stimmen',hidden:true,modes:[['tune','Stimmen']]}, // Stimmgerät: Stimmgabel-Knopf oben rechts statt Reiter
   {id:'stats',name:'Statistik',modes:[['stats','Statistik']]}
 ];
-var VIEWS={path:viewPath,cdeg:viewChordDeg,cbuild:viewChordBuild,cstep:viewChordStep,map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,cplay:viewChordPlay,
+var VIEWS={tnotes:viewTheoryNotes,tscales:viewTheoryScales,tchords:viewTheoryChords,path:viewPath,cdeg:viewChordDeg,cbuild:viewChordBuild,cstep:viewChordStep,map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,cplay:viewChordPlay,
   smap:viewScaleMap,sfind:viewScaleFind,sname:viewScaleName,splay:viewScalePlay,tune:viewTune,stats:viewStats};
 function groupOf(mode){
   for(var i=0;i<GROUPS.length;i++)for(var j=0;j<GROUPS[i].modes.length;j++)if(GROUPS[i].modes[j][0]===mode)return GROUPS[i];
