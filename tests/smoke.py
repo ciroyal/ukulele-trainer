@@ -274,7 +274,7 @@ try:
         go(pg, 'path'); pg.locator('.stage h2').nth(2).click()
         check('Lernpfad: Tipp auf Stufe 3 öffnet Akkorde (zuletzt benutzte Seite)', pg.evaluate("groupOf(state.mode).id")=='chords' and pg.evaluate("state.mode")==pg.evaluate("state.gm.chords"), pg.evaluate("state.mode"))
         go(pg, 'path')
-        check('Lernpfad: Link führt zur Übung', (pg.click('.stage [data-v="cbuild"]') or True) and pg.evaluate("state.mode")=='cbuild')
+        check('Lernpfad: keine Links in den Stufen', pg.locator('.stage .btn').count() == 0)
         go(pg, 'smap')
         pg.evaluate("state.sRoot=0;state.sType=0;render()")
         exp = pg.evaluate("(function(){var set=[0,2,4,5,7,9,11],c=0;for(var s=0;s<4;s++)for(var f=0;f<=5;f++)if(set.indexOf(noteAt(s,f))>=0)c++;return c})()")
