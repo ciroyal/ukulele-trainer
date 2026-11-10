@@ -119,7 +119,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 19:30';
+var VERSION='2026-11-10 · 20:00';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1038,13 +1038,13 @@ function viewTheoryChords(){
 
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
 // ----- Runden und Bewertung -----
-// Eine Runde dauert 60 Sekunden. Je mehr richtige Antworten, desto mehr Sterne (nur mit mindestens 70 % richtig).
+// Eine Runde dauert 60 Sekunden. Je mehr richtige Antworten, desto mehr Sterne (nur mit mindestens 80 % richtig).
 // Ein Schritt ist geschafft, wenn jede seiner Übungen mindestens PASS_STARS Sterne hat.
 var ROUND_SEC=60,PASS_STARS=2,roundTimer=null;
 // richtige Antworten pro Minute für 1, 2 und 3 Sterne
-var RATING={find:[5,8,12],name:[8,12,18],sfind:[2,3,5],sname:[6,9,13],splay:[2,3,4],cbuild:[3,5,8],cstep:[6,9,13],cfind:[2,4,6],cname:[5,8,12],cplay:[2,3,5]};
+var RATING={find:[8,12,16],name:[12,17,23],sfind:[3,4,6],sname:[9,13,18],splay:[3,4,5],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
 function starsFor(mode,ok,total){
-  if(!total||ok/total<0.7)return 0;
+  if(!total||ok/total<0.8)return 0;
   var s=0;RATING[mode].forEach(function(x){if(ok>=x)s++;});return s;
 }
 function starText(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
@@ -1084,7 +1084,7 @@ function roundBar(){
   }
   var o='<div class="card"><div class="rtop"><div><b>Runde · '+ROUND_SEC+' s</b><div class="hint" style="margin:2px 0 0">'+(b?'Beste: '+starText(b.stars)+' ('+b.ok+' richtig)':'Noch keine Runde')+'</div></div><button class="btn pri" data-act="rstart">Starten</button></div>';
   if(res&&res.mode===m)o+='<p class="fb '+(res.stars>=PASS_STARS?'ok':'bad')+'" style="margin:8px 0 0">'+starText(res.stars)+' · '+res.ok+' richtig, '+(res.total-res.ok)+' falsch'+(res.stars>=PASS_STARS?' – Ziel erreicht!':' – Ziel: '+PASS_STARS+' Sterne')+'</p>';
-  return o+'<p class="hint" style="margin:8px 0 0">★ ab '+th[0]+' · ★★ ab '+th[1]+' · ★★★ ab '+th[2]+' richtige Antworten pro Runde, mindestens 70 % richtig.</p></div>';
+  return o+'<p class="hint" style="margin:8px 0 0">★ ab '+th[0]+' · ★★ ab '+th[1]+' · ★★★ ab '+th[2]+' richtige Antworten pro Runde, mindestens 80 % richtig.</p></div>';
 }
 
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
