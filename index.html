@@ -113,6 +113,8 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // Tonnamen nach deutschem System: Stammtöne C D E F G A H, Zwischentöne mit -is (erhöht) oder erniedrigt (Des, Es, Ges, As, B).
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
+// Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
+var VERSION='2026-11-10 · 13:50';
 var NOTES=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
 var FLATS=['','Des','','Es','','','Ges','','As','','B',''];
 var NAMES=NOTES.map(function(n,i){return FLATS[i]?n+'/'+FLATS[i]:n;});
@@ -1015,7 +1017,7 @@ function render(){
   if(state.settings){
     o+='<div class="card"><p class="prompt" style="font-size:17px">Einstellungen</p><p class="hint" style="margin:4px 0 8px">Instrument</p><div class="inst" style="margin:0">';
     Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-    o+='</div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label></div>';
+    o+='</div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Stand der App: '+VERSION+'</p></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
   o+='<p class="sub">Stimmung '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
