@@ -96,6 +96,9 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 .stage .links{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
 .stage .links .btn{padding:8px 12px;font-size:14px}
 .stage.next{border-color:var(--accent)}
+.stage{cursor:pointer}
+.stage h2{display:flex;align-items:center}
+.stage .go{margin-left:auto;font-size:22px;color:var(--muted)}
 .badge{display:inline-block;font-size:12px;color:var(--accentText);background:var(--accentbg);border-radius:6px;padding:2px 8px;margin-left:8px;vertical-align:2px}
 .btn:disabled{opacity:.45;cursor:default}
 .tabs.top .tab{font-size:11px;padding:8px 1px}
@@ -867,13 +870,13 @@ function viewPath(){
   var cs=INSTR[state.inst].chords,degKeys=[];
   [0,1].forEach(function(t){for(var d=0;d<7;d++)degKeys.push(degKey(t,triadAt(0,t,d)));});
   var stages=[
-    {title:'Töne',text:'Die 12 Töne und ihre Plätze auf dem Griffbrett. Ein Bund ist ein Halbton.',
+    {group:'notes',title:'Töne',text:'Die 12 Töne und ihre Plätze auf dem Griffbrett. Ein Bund ist ein Halbton.',
      done:sureCount('notes',[0,1,2,3,4,5,6,7,8,9,10,11]),total:12,unit:'Töne sicher',
      links:[['map','Karte'],['find','Finden'],['name','Erkennen']]},
-    {title:'Tonleitern',text:'Eine Tonleiter wählt Töne nach einem festen Muster aus. Dur: 2-2-1-2-2-2-1 Halbtöne, Moll: 2-1-2-2-1-2-2.',
+    {group:'scales',title:'Tonleitern',text:'Eine Tonleiter wählt Töne nach einem festen Muster aus. Dur: 2-2-1-2-2-2-1 Halbtöne, Moll: 2-1-2-2-1-2-2.',
      done:sureCount('scales',SCALES.map(function(s){return s.id;})),total:SCALES.length,unit:'Tonleiter-Arten sicher',
      links:[['smap','Karte'],['sfind','Finden'],['sname','Erkennen'],['splay','Spielen']]},
-    {title:'Akkorde',text:'Auf jeder Stufe einer Tonleiter stapelst du jeden zweiten Ton: 1., 3. und 5. Ton ergeben den Akkord. Aus C-Dur wird so I = C E G, ii = D F A.',
+    {group:'chords',title:'Akkorde',text:'Auf jeder Stufe einer Tonleiter stapelst du jeden zweiten Ton: 1., 3. und 5. Ton ergeben den Akkord. Aus C-Dur wird so I = C E G, ii = D F A.',
      done:sureCount('chords',cs.map(function(c){return c.n;}))+sureCount('degrees',degKeys),total:cs.length+degKeys.length,unit:'Akkorde und Stufen sicher',
      links:[['cdeg','Stufen'],['cbuild','Bauen'],['cstep','Stufe'],['cfind','Greifen'],['cname','Erkennen'],['cplay','Spielen']]}
   ];
@@ -882,7 +885,8 @@ function viewPath(){
   var o='<div class="card"><p class="prompt" style="font-size:17px">Dein Weg</p><p class="hint" style="margin:4px 0 0">Aus den Tönen entstehen die Tonleitern, aus den Tonleitern die Akkorde. Jede Stufe baut auf der vorherigen auf. „Sicher“ heißt: mindestens 3 Antworten, davon 80 % richtig.</p></div>';
   stages.forEach(function(s,i){
     var pct=Math.round(100*s.done/s.total);
-    o+='<div class="card stage'+(i===next?' next':'')+'"><h2>Stufe '+(i+1)+' · '+s.title+(i===next?'<span class="badge">Als Nächstes</span>':'')+'</h2>'+
+    // Ein Tipp auf die Karte öffnet den Bereich (zuletzt benutzte Seite), die Knöpfe darin gehen direkt zu einer Übung
+    o+='<div class="card stage'+(i===next?' next':'')+'" data-act="grp" data-v="'+s.group+'"><h2>Stufe '+(i+1)+' · '+s.title+(i===next?'<span class="badge">Als Nächstes</span>':'')+'<span class="go">›</span></h2>'+
        '<p class="hint" style="margin:4px 0 0">'+s.text+'</p><div class="bar"><i style="width:'+pct+'%"></i></div>'+
        '<span class="hint">'+s.done+' von '+s.total+' '+s.unit+'</span><div class="links">';
     s.links.forEach(function(l){o+='<button class="btn" data-act="tab" data-v="'+l[0]+'">'+l[1]+'</button>';});
