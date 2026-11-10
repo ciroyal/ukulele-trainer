@@ -184,16 +184,20 @@ try:
         b = launch(p, a440)
         errors, bad = [], []
         pg = new_page(b, errors, bad)
-        # Griffe: jeder Ton muss zum Akkordnamen passen (Stammton der Dur/Moll-Akkorde im Griff enthalten)
-        chk = pg.evaluate("""(function(){var bad=[];var root={C:0,Am:9,F:5,G:7,G7:7,Dm:2,Em:4,A:9,D:2,C7:0,E:4,E7:4};
+        # Griffe: jeder Griff muss genau die Töne seines Akkords enthalten (Grundton, Terz, Quinte, ggf. Septime)
+        chk = pg.evaluate("""(function(){var bad=[];
           Object.keys(INSTR).forEach(function(id){useInstrument(id);INSTR[id].chords.forEach(function(c){
-            var ns=[];c.f.forEach(function(f,s){if(f>=0)ns.push(noteAt(s,f));});
-            if(ns.indexOf(root[c.n])<0)bad.push(id+' '+c.n+' ohne Grundton');
-            var third=c.n.indexOf('m')>=0&&c.n!=='Em7'?3:4;var has3=ns.indexOf((root[c.n]+third)%12)>=0;
-            if(!has3)bad.push(id+' '+c.n+' ohne Terz');
+            var ns=[];c.f.forEach(function(f,s){if(f>=0){var n=noteAt(s,f);if(ns.indexOf(n)<0)ns.push(n);}});
+            var want=[c.r,(c.r+(c.q==='m'?3:4))%12,(c.r+7)%12].concat(c.q==='7'?[(c.r+10)%12]:[]);
+            // Beim Septakkord darf die Quinte fehlen (Standardgriff C7 auf der Gitarre: x32310)
+            var wantNoFifth=want.filter(function(n){return !(c.q==='7'&&n===(c.r+7)%12);});
+            var okSet=ns.slice().sort().join()===want.slice().sort().join()||(c.q==='7'&&ns.slice().sort().join()===wantNoFifth.slice().sort().join());
+            if(!okSet)bad.push(id+' '+c.n+' Töne '+ns);
             if(c.f.length!==STR.length)bad.push(id+' '+c.n+' Länge');
+            var first=c.f.findIndex(function(f){return f>=0;});
+            if(noteAt(first,c.f[first])!==c.r&&!(id==='uke'))bad.push(id+' '+c.n+' Bass nicht Grundton');
           });});useInstrument('uke');return bad;})()""")
-        check('Akkordgriffe enthalten Grundton und Terz', chk == [], str(chk))
+        check('Alle Akkordgriffe enthalten genau die richtigen Töne', chk == [], str(chk))
         go(pg, 'cmap')
         check('Akkordkarte: ein Punkt je Saite', pg.locator('.dot').count() == 4, str(pg.locator('.dot').count()))
         go(pg, 'cfind')
@@ -205,7 +209,7 @@ try:
         pg.click('[data-act="cchk"]')
         check('Greifen: leere Saiten sind falsch', pg.evaluate("state.q.done&&!state.q.ok") and 'Richtig wäre' in pg.inner_text('.fb'))
         go(pg, 'cname')
-        pg.evaluate("state.q={i:1,fing:[],done:false,ok:false,picked:null,id:23};render()")          # A-Moll
+        pg.evaluate("state.q={i:21,fing:[],done:false,ok:false,picked:null,id:23};render()")          # A-Moll
         pg.click('.ans .btn:text-is("Am")')
         check('Akkord erkennen: Am', pg.evaluate("state.q.ok===true&&stats.chords.Am.c===1"))
         # Tonart wählen: nur passende Akkorde (C-Dur auf der Ukulele: C Am F G G7 Dm Em)
@@ -276,10 +280,10 @@ try:
         # Akkord spielen mit dem simulierten Mikrofon: Ukulele C-Dur (G4 C4 E4 C5), danach falscher Akkord
         for wavname, midis, target, inst, expect in [('c_uke.wav', [67, 60, 64, 72], 0, 'uke', True),
                                                      ('am_uke.wav', [69, 69, 60, 64], 0, 'uke', False),
-                                                     ('am_gtr.wav', [45, 52, 57, 60, 64], 1, 'gtr', True),
-                                                     ('c7_uke.wav', [67, 60, 64, 70], 9, 'uke', True),    # C7 gespielt, Ziel C7
+                                                     ('am_gtr.wav', [45, 52, 57, 60, 64], 21, 'gtr', True),
+                                                     ('c7_uke.wav', [67, 60, 64, 70], 24, 'uke', True),    # C7 gespielt, Ziel C7
                                                      ('c7b_uke.wav', [67, 60, 64, 70], 0, 'uke', False),  # C7 gespielt, Ziel C
-                                                     ('cb_uke.wav', [67, 60, 64, 72], 9, 'uke', False)]:  # C gespielt, Ziel C7
+                                                     ('cb_uke.wav', [67, 60, 64, 72], 24, 'uke', False)]:  # C gespielt, Ziel C7
             b = launch(p, make_chord_wav(wavname, midis))
             errors, bad = [], []
             pg = new_page(b, errors, bad)

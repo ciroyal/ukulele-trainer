@@ -89,20 +89,38 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 <div id="root"></div>
 <script>
 var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','H'];
+// Akkordgriffe für alle 12 Grundtöne: Dur, Moll und Dominantseptakkord. Je Instrument Bund pro Saite (0 = leer, -1 = gedämpft),
+// Reihenfolge der Grundtöne wie NOTES (C, C#, D, D#, E, F, F#, G, G#, A, A#, H). tests/smoke.py prüft, dass jeder Griff genau die richtigen Töne enthält.
+var SHAPES={
+  uke:{
+    '':[[0,0,0,3],[1,1,1,4],[2,2,2,0],[0,3,3,1],[4,4,4,2],[2,0,1,0],[3,1,2,1],[0,2,3,2],[5,3,4,3],[2,1,0,0],[3,2,1,1],[4,3,2,2]],
+    'm':[[0,3,3,3],[1,4,4,4],[2,2,1,0],[3,3,2,1],[0,4,3,2],[1,0,1,3],[2,1,2,0],[0,2,3,1],[1,3,4,2],[2,0,0,0],[3,1,1,1],[4,2,2,2]],
+    '7':[[0,0,0,1],[1,1,1,2],[2,2,2,3],[3,3,3,4],[1,2,0,2],[2,3,1,3],[3,4,2,4],[0,2,1,2],[1,3,2,3],[0,1,0,0],[1,2,1,1],[2,3,2,2]]
+  },
+  gtr:{
+    '':[[-1,3,2,0,1,0],[-1,4,6,6,6,4],[-1,-1,0,2,3,2],[-1,-1,1,3,4,3],[0,2,2,1,0,0],[1,3,3,2,1,1],[2,4,4,3,2,2],[3,2,0,0,0,3],[4,6,6,5,4,4],[-1,0,2,2,2,0],[-1,1,3,3,3,1],[-1,2,4,4,4,2]],
+    'm':[[-1,3,5,5,4,3],[-1,4,6,6,5,4],[-1,-1,0,2,3,1],[-1,-1,1,3,4,2],[0,2,2,0,0,0],[1,3,3,1,1,1],[2,4,4,2,2,2],[3,5,5,3,3,3],[4,6,6,4,4,4],[-1,0,2,2,1,0],[-1,1,3,3,2,1],[-1,2,4,4,3,2]],
+    '7':[[-1,3,2,3,1,0],[-1,4,6,4,6,4],[-1,-1,0,2,1,2],[-1,-1,1,3,2,3],[0,2,0,1,0,0],[1,3,1,2,1,1],[2,4,2,3,2,2],[3,2,0,0,0,1],[4,6,4,5,4,4],[-1,0,2,0,2,0],[-1,1,3,1,3,1],[-1,2,1,2,0,2]]
+  }
+};
+// Baut die Akkordliste eines Instruments. n = Kurzname (Statistik-Schlüssel), t = Name im Satz, r = Grundton, q = Art ('', 'm', '7')
+function makeChords(id){
+  var out=[];
+  [['','-Dur'],['m','-Moll'],['7','7']].forEach(function(qt){
+    SHAPES[id][qt[0]].forEach(function(f,r){out.push({n:NOTES[r]+qt[0],t:NOTES[r]+qt[1],r:r,q:qt[0],f:f});});
+  });
+  return out;
+}
 // Instrumente. Saiten von links nach rechts wie im Akkorddiagramm. n = Kurzname, label = Name im Satz,
 // m = MIDI-Nummer der leeren Saite (60 = C4), f = Frequenz in Hz. lowHz/fft: Suchbereich und Fenstergröße der Tonerkennung
 // (tiefe Gitarrensaiten brauchen ein längeres Fenster). marks = Bundmarkierungen (1 = ein Punkt, 2 = zwei), dbl = Saitenpaare der Doppelpunkte.
 var INSTR={
   uke:{name:'Ukulele',tuning:'G–C–E–A (hohes G)',lowHz:200,fft:2048,marks:{5:1,7:1,10:1,12:2},dbl:[[0,1],[2,3]],gap:60,mutes:false,playBase:60,
     // Griffe: Bund je Saite von links nach rechts, 0 = leer, -1 = gedämpft. Töne dazu in tests/smoke.py geprüft.
-    chords:[{n:'C',t:'C-Dur',f:[0,0,0,3]},{n:'Am',t:'A-Moll',f:[2,0,0,0]},{n:'F',t:'F-Dur',f:[2,0,1,0]},{n:'G',t:'G-Dur',f:[0,2,3,2]},
-      {n:'G7',t:'G7',f:[0,2,1,2]},{n:'Dm',t:'D-Moll',f:[2,2,1,0]},{n:'Em',t:'E-Moll',f:[0,4,3,2]},{n:'A',t:'A-Dur',f:[2,1,0,0]},
-      {n:'D',t:'D-Dur',f:[2,2,2,0]},{n:'C7',t:'C7',f:[0,0,0,1]}],
+    chords:makeChords('uke'),
     strings:[{n:'G',label:'G-Saite',m:67,f:392.0},{n:'C',label:'C-Saite',m:60,f:261.63},{n:'E',label:'E-Saite',m:64,f:329.63},{n:'A',label:'A-Saite',m:69,f:440.0}]},
   gtr:{name:'Gitarre',tuning:'E–A–D–G–H–e',lowHz:70,fft:4096,marks:{3:1,5:1,7:1,9:1,12:2},dbl:[[1,2],[3,4]],gap:38,mutes:true,playBase:52,
-    chords:[{n:'C',t:'C-Dur',f:[-1,3,2,0,1,0]},{n:'Am',t:'A-Moll',f:[-1,0,2,2,1,0]},{n:'G',t:'G-Dur',f:[3,2,0,0,0,3]},{n:'Em',t:'E-Moll',f:[0,2,2,0,0,0]},
-      {n:'D',t:'D-Dur',f:[-1,-1,0,2,3,2]},{n:'Dm',t:'D-Moll',f:[-1,-1,0,2,3,1]},{n:'A',t:'A-Dur',f:[-1,0,2,2,2,0]},{n:'E',t:'E-Dur',f:[0,2,2,1,0,0]},
-      {n:'G7',t:'G7',f:[3,2,0,0,0,1]},{n:'E7',t:'E7',f:[0,2,0,1,0,0]}],
+    chords:makeChords('gtr'),
     strings:[{n:'E',label:'E-Saite (tief)',m:40,f:82.41},{n:'A',label:'A-Saite',m:45,f:110.0},{n:'D',label:'D-Saite',m:50,f:146.83},
       {n:'G',label:'G-Saite',m:55,f:196.0},{n:'H',label:'H-Saite',m:59,f:246.94},{n:'e',label:'e-Saite (hoch)',m:64,f:329.63}]}
 };
@@ -306,7 +324,9 @@ function micTick(){
 function chordTick(){
   var m=state.mic,q=state.q,I=INSTR[state.inst],liveEl=document.getElementById('live');
   var c=chroma(dev.buf,dev.ctx.sampleRate,state.inst==='gtr'?40:55,88);
-  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.03&&r.margin>=0.03;
+  var pool=chordsInKey().inKey,r=c?matchChord(c,pool.map(function(k){return I.chords[k];})):null;
+  if(r)r.i=pool[r.i];
+  var good=r&&r.score>=0.03&&r.margin>=0.03;
   if(liveEl)liveEl.textContent=good?I.chords[r.i].n:'–';
   if(!q||q.done||Date.now()<m.cool)return;
   if(good&&r.i===q.i)m.stable++;else m.stable=0;
@@ -427,9 +447,13 @@ function chordsInKey(){
   var cs=INSTR[state.inst].chords,all=cs.map(function(c,k){return k;});
   if(state.kRoot<0)return {all:all,inKey:all,strict:false};
   var set=scaleNotes(state.kRoot,SCALES[state.kType]);
+  var minor=state.kType===1,dom=(state.kRoot+7)%12;
   var inKey=all.filter(function(k){
-    return cs[k].f.every(function(f,s){return f<0||set.indexOf(noteAt(s,f))>=0;});
-  });
+    var c=cs[k];
+    // In Moll gehört auch die Dur-Dominante (und ihr Septakkord) dazu, z. B. E und E7 in A-Moll
+    if(minor&&c.r===dom&&c.q!=='m')return true;
+    return c.f.every(function(f,s){return f<0||set.indexOf(noteAt(s,f))>=0;});
+  }).sort(function(a,b){return ((cs[a].r-state.kRoot+12)%12)-((cs[b].r-state.kRoot+12)%12)||a-b;}); // nach Stufe: I, ii, iii ...
   return {all:all,inKey:inKey.length>=2?inKey:all,strict:inKey.length>=2,exact:inKey};
 }
 function keySelects(){
@@ -632,6 +656,8 @@ function chordDots(c,labels){
     return {s:s,f:f,c:f===0?'open':'nat',l:labels?NOTES[noteAt(s,f)]:''};
   });
 }
+// Wie viele Bünde das Akkordbild zeigt: mindestens 4, bei hohen Barré-Griffen mehr
+function chordFrets(c){return Math.max(4,Math.max.apply(null,c.f));}
 function chordNotes(c){
   var seen=[];
   c.f.forEach(function(f,s){if(f>=0){var n=NOTES[noteAt(s,f)];if(seen.indexOf(n)<0)seen.push(n);}});
@@ -652,9 +678,13 @@ function viewChordMap(){
     var rest=g.all.filter(function(k){return g.inKey.indexOf(k)<0;});
     o+='<p class="hint" style="margin:0 0 6px">In '+scaleName(state.kRoot,SCALES[state.kType])+'</p>'+chips(g.inKey);
     if(rest.length)o+='<p class="hint" style="margin:0 0 6px">Weitere Akkorde</p>'+chips(rest);
-  }else o+=chips(g.all);
+  }else{
+    [['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
+      o+='<p class="hint" style="margin:0 0 6px">'+qt[1]+'</p>'+chips(g.all.filter(function(k){return cs[k].q===qt[0];}));
+    });
+  }
   o+='<div class="card"><p class="prompt">'+c.t+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+chordNotes(c)+'</p><button class="btn" data-act="strum">Anschlagen</button></div>';
-  return o+fretboard(chordDots(c,true),null,4);
+  return o+fretboard(chordDots(c,true),null,chordFrets(c));
 }
 function viewChordFind(){
   if(!state.q)newChordQ();
@@ -671,7 +701,7 @@ function viewChordFind(){
     btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="cchk">Prüfen</button></p>';
   }
   var hint=q.done?'':'<p class="hint" style="margin:6px 0 0">Tippe auf die Bünde. Saiten ohne Finger bleiben leer.'+(I.mutes?' Tippe oben auf eine Saite, um sie zu dämpfen (×).':'')+'</p>';
-  return keySelects()+'<div class="card"><p class="prompt">Greife '+c.t+'</p>'+hint+fb+btn+'</div>'+fretboard(dots,null,4);
+  return keySelects()+'<div class="card"><p class="prompt">Greife '+c.t+'</p>'+hint+fb+btn+'</div>'+fretboard(dots,null,chordFrets(c));
 }
 function viewChordName(){
   if(!state.q)newChordQ();
@@ -689,7 +719,7 @@ function viewChordName(){
     a+='<button class="'+cl+'" data-act="cans" data-v="'+k+'">'+ch.n+'</button>';
   });
   a+='</div><p class="hint">Nur Buchstabe = Dur · m = Moll · 7 = Septakkord</p>';
-  return keySelects()+'<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,4);
+  return keySelects()+'<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,chordFrets(c));
 }
 
 function viewChordPlay(){
@@ -703,7 +733,7 @@ function viewChordPlay(){
   }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon, greife den Akkord und schlage alle Saiten an. Lass ihn klingen, bis er erkannt wird.</p>';
   var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
   if(mic.err)m+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
-  return m+keySelects()+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,4);
+  return m+keySelects()+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,chordFrets(c));
 }
 
 // ----- Tonleitern -----
