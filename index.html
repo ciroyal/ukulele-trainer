@@ -68,6 +68,21 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 .meter{position:relative;height:8px;border-radius:4px;background:var(--line);margin:12px 0 4px}
 .meter span{position:absolute;left:50%;top:-3px;width:2px;height:14px;background:var(--muted)}
 .meter i{position:absolute;top:-2px;left:50%;width:10px;height:12px;margin-left:-5px;border-radius:3px;background:var(--accent);z-index:1}
+
+.tabs .tab{font-size:12px}
+.tabs.sub{margin:-4px 0 12px}
+.tabs.sub .tab{font-size:13px;padding:7px 2px}
+.chips{display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin:0 0 12px}
+.chips .btn{padding:8px 0;font-size:15px}
+.sel{display:flex;flex-wrap:wrap;gap:8px 14px;align-items:center;margin:0 0 12px;font-size:14px;color:var(--muted)}
+.sel label{display:flex;align-items:center;gap:6px}
+.seq{display:flex;flex-wrap:wrap;gap:6px;margin:10px 0 0}
+.seq span{min-width:38px;text-align:center;padding:6px 8px;border:0.5px solid var(--line);border-radius:8px;font-size:15px}
+.seq .cur{border-color:var(--accent);background:var(--accentbg);color:var(--accentText);font-weight:500}
+.seq .done{background:var(--okbg);border-color:var(--ok);color:var(--okText)}
+.mute circle{fill:transparent;stroke:transparent}
+.dot.mute text{fill:var(--muted);font-size:20px}
+.row.wide{grid-template-columns:120px 1fr 64px}
 </style>
 </head>
 <body>
@@ -78,12 +93,24 @@ var NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','H'];
 // m = MIDI-Nummer der leeren Saite (60 = C4), f = Frequenz in Hz. lowHz/fft: Suchbereich und Fenstergröße der Tonerkennung
 // (tiefe Gitarrensaiten brauchen ein längeres Fenster). marks = Bundmarkierungen (1 = ein Punkt, 2 = zwei), dbl = Saitenpaare der Doppelpunkte.
 var INSTR={
-  uke:{name:'Ukulele',tuning:'G–C–E–A (hohes G)',lowHz:200,fft:2048,marks:{5:1,7:1,10:1,12:2},dbl:[[0,1],[2,3]],gap:60,
+  uke:{name:'Ukulele',tuning:'G–C–E–A (hohes G)',lowHz:200,fft:2048,marks:{5:1,7:1,10:1,12:2},dbl:[[0,1],[2,3]],gap:60,mutes:false,playBase:60,
+    // Griffe: Bund je Saite von links nach rechts, 0 = leer, -1 = gedämpft. Töne dazu in tests/smoke.py geprüft.
+    chords:[{n:'C',t:'C-Dur',f:[0,0,0,3]},{n:'Am',t:'A-Moll',f:[2,0,0,0]},{n:'F',t:'F-Dur',f:[2,0,1,0]},{n:'G',t:'G-Dur',f:[0,2,3,2]},
+      {n:'G7',t:'G7',f:[0,2,1,2]},{n:'Dm',t:'D-Moll',f:[2,2,1,0]},{n:'Em',t:'E-Moll',f:[0,4,3,2]},{n:'A',t:'A-Dur',f:[2,1,0,0]},
+      {n:'D',t:'D-Dur',f:[2,2,2,0]},{n:'C7',t:'C7',f:[0,0,0,1]}],
     strings:[{n:'G',label:'G-Saite',m:67,f:392.0},{n:'C',label:'C-Saite',m:60,f:261.63},{n:'E',label:'E-Saite',m:64,f:329.63},{n:'A',label:'A-Saite',m:69,f:440.0}]},
-  gtr:{name:'Gitarre',tuning:'E–A–D–G–H–e',lowHz:70,fft:4096,marks:{3:1,5:1,7:1,9:1,12:2},dbl:[[1,2],[3,4]],gap:38,
+  gtr:{name:'Gitarre',tuning:'E–A–D–G–H–e',lowHz:70,fft:4096,marks:{3:1,5:1,7:1,9:1,12:2},dbl:[[1,2],[3,4]],gap:38,mutes:true,playBase:52,
+    chords:[{n:'C',t:'C-Dur',f:[-1,3,2,0,1,0]},{n:'Am',t:'A-Moll',f:[-1,0,2,2,1,0]},{n:'G',t:'G-Dur',f:[3,2,0,0,0,3]},{n:'Em',t:'E-Moll',f:[0,2,2,0,0,0]},
+      {n:'D',t:'D-Dur',f:[-1,-1,0,2,3,2]},{n:'Dm',t:'D-Moll',f:[-1,-1,0,2,3,1]},{n:'A',t:'A-Dur',f:[-1,0,2,2,2,0]},{n:'E',t:'E-Dur',f:[0,2,2,1,0,0]},
+      {n:'G7',t:'G7',f:[3,2,0,0,0,1]},{n:'E7',t:'E7',f:[0,2,0,1,0,0]}],
     strings:[{n:'E',label:'E-Saite (tief)',m:40,f:82.41},{n:'A',label:'A-Saite',m:45,f:110.0},{n:'D',label:'D-Saite',m:50,f:146.83},
       {n:'G',label:'G-Saite',m:55,f:196.0},{n:'H',label:'H-Saite',m:59,f:246.94},{n:'e',label:'e-Saite (hoch)',m:64,f:329.63}]}
 };
+// Tonleitern: Abstände in Halbtönen vom Grundton. Alle Töne werden mit # geschrieben (das deutsche B heißt hier A#).
+var SCALES=[{id:'maj',name:'Dur',iv:[0,2,4,5,7,9,11]},{id:'min',name:'Moll',iv:[0,2,3,5,7,8,10]},
+  {id:'pmaj',name:'Dur-Pentatonik',iv:[0,2,4,7,9]},{id:'pmin',name:'Moll-Pentatonik',iv:[0,3,5,7,10]}];
+function scaleNotes(root,sc){return sc.iv.map(function(i){return (root+i)%12;});}
+function scaleName(root,sc){return NOTES[root]+'-'+sc.name;}
 var STR,XS; // Saiten und x-Positionen des gerade gewählten Instruments, siehe useInstrument()
 function octName(m){return NOTES[((m%12)+12)%12]+(Math.floor(m/12)-1);}
 var TOP=66, FH=44;
@@ -101,6 +128,7 @@ function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catc
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
 var state={inst:'uke',mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0, // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
   tune:{sel:'auto',hist:[],last:0,ok:0},   // Stimmgerät: gewählte Saite, letzte Messwerte, Zeitpunkt, Treffer in Folge
   mic:{on:false,err:'',stable:0,cool:0}};  // Mikrofon: stable = gleiche richtige Messungen in Folge, cool = Sperre bis Zeitpunkt
 // Browser-Objekte (Audio, Mikrofon, Timer). Getrennt von `state`, weil sie nicht in Text umgewandelt werden dürfen.
@@ -113,25 +141,38 @@ function useInstrument(id){
   STR=INSTR[id].strings;
   var gap=INSTR[id].gap;
   XS=STR.map(function(s,i){return 170+(i-(STR.length-1)/2)*gap;}); // um die Mitte (x = 170) verteilt
-  state.q=null;state.last=null;state.streak=0;state.tune.sel='auto';state.tune.hist=[];state.resetArmed=false;
+  state.q=null;state.last=null;state.cSel=0;state.streak=0;state.tune.sel='auto';state.tune.hist=[];state.resetArmed=false;
   loadStats();
   try{localStorage.setItem('griffbrett-inst',id);}catch(e){/* Speicher gesperrt: Auswahl gilt nur bis zum Neuladen */}
 }
 
 // ===== Ton ausgeben =====
 // Spielt den Ton der Saite s im Bund f. Bei laufendem Mikrofon bleibt es still, sonst hört sich die App selbst.
-function play(s,f){
+// Spielt einen Ton mit der Frequenz fr (Hz). Bei laufendem Mikrofon bleibt es still, sonst hört sich die App selbst.
+function playFreq(fr){
   if(!state.sound||state.mic.on)return;
   try{
     dev.ac=dev.ac||new (window.AudioContext||window.webkitAudioContext)();
     if(dev.ac.state==='suspended')dev.ac.resume();
     var o=dev.ac.createOscillator(),g=dev.ac.createGain(),t=dev.ac.currentTime;
-    o.type='triangle';o.frequency.value=STR[s].f*Math.pow(2,f/12);
+    o.type='triangle';o.frequency.value=fr;
     g.gain.setValueAtTime(0.0001,t);
     g.gain.exponentialRampToValueAtTime(0.35,t+0.01);
     g.gain.exponentialRampToValueAtTime(0.0001,t+1.2);
     o.connect(g);g.connect(dev.ac.destination);o.start(t);o.stop(t+1.3);
   }catch(e){/* Audio nicht verfügbar: die App funktioniert auch ohne Ton */}
+}
+// Saite s im Bund f (jeder Bund = ein Halbton = Faktor 2^(1/12))
+function play(s,f){playFreq(STR[s].f*Math.pow(2,f/12));}
+// Spielt Töne nacheinander (null = Pause). Eine neue Folge bricht die alte ab.
+function playSeq(freqs,ms){
+  var id=++state.seqId;
+  freqs.forEach(function(fr,i){setTimeout(function(){if(state.seqId===id&&fr!==null)playFreq(fr);},i*ms);});
+}
+// Eine Oktave aufwärts plus Grundton oben, beginnend im bequemen Bereich des Instruments
+function scaleFreqs(root,sc){
+  var base=INSTR[state.inst].playBase,r0=base+((root-base%12)+12)%12;
+  return sc.iv.map(function(i){return r0+i;}).concat([r0+12]).map(function(m){return 440*Math.pow(2,(m-69)/12);});
 }
 
 // ===== Tonhöhe erkennen =====
@@ -212,6 +253,7 @@ function micTick(){
   var mf=69+12*Math.log2(f/440),mi=Math.round(mf),cents=Math.round((mf-mi)*100);
   if(liveEl)liveEl.textContent=octName(mi)+' ('+(cents>0?'+':'')+cents+' ct)';
   if(mk)mk.style.left=(50+cents)+'%';
+  if(state.mode==='splay'){scalePlayTick(mi);return;}
   var q=state.q;
   if(state.mode!=='find'||!q||q.done||Date.now()<m.cool)return;
   // Zählt nur der genau richtige Ton (inklusive Oktave). 5 Messungen in Folge ≈ 0,3 s filtern Ausreißer heraus.
@@ -221,6 +263,20 @@ function micTick(){
     record(q.n,true);m.stable=0;render();
     autoAdvance(q,'find',1200);
   }
+}
+
+// Tonleiter spielen: der erwartete Ton (nur Tonname, Oktave egal) muss 4 Messungen in Folge stimmen, dann geht es zum nächsten.
+function scalePlayTick(mi){
+  var q=state.q,m=state.mic;
+  if(!q||q.done||Date.now()<m.cool)return;
+  if(((mi%12)+12)%12===q.seq[q.idx])m.stable++;else m.stable=0;
+  if(m.stable<4)return;
+  m.stable=0;q.idx++;
+  if(q.idx>=q.seq.length){
+    q.done=true;q.ok=true;
+    record(SCALES[q.t].id,true,'scales');render();
+    autoAdvance(q,'splay',1500);
+  }else render();
 }
 
 // ===== Stimmgerät-Anzeige =====
@@ -284,17 +340,30 @@ function pool(){
   }
   return r;
 }
-function weight(n){
-  var st=stats.notes[n];
+// Gewicht einer Aufgabe: schwache oder noch unbekannte Aufgaben kommen häufiger dran
+function weightOf(bucket,key){
+  var st=stats[bucket]&&stats[bucket][key];
   if(!st||st.a<2)return 2;
   return 1+2*(1-st.c/st.a);
+}
+// Zufällige Aufgabe aus list, bevorzugt schwache, nie dieselbe wie zuletzt (Statistik-Gruppe bucket, Schlüssel keyOf)
+function weighted(list,bucket,keyOf){
+  var tot=0,i,ws=list.map(function(it){
+    var k=keyOf(it),w=(list.length>1&&k===state.lastKey)?0:weightOf(bucket,k);
+    tot+=w;return w;
+  });
+  var x=Math.random()*tot;
+  for(i=0;i<list.length;i++){x-=ws[i];if(x<=0&&ws[i]>0)break;}
+  if(i>=list.length)i=0;
+  state.lastKey=keyOf(list[i]);
+  return list[i];
 }
 function newQ(){
   var p=pool(),tot=0,i;
   for(i=0;i<p.length;i++){
     var L=state.last;
     var same=L&&((L.s===p[i].s&&L.f===p[i].f)||(state.mic.on&&L.n===p[i].n));
-    p[i].w=same?0:weight(p[i].n);
+    p[i].w=same?0:weightOf('notes',p[i].n);
     tot+=p[i].w;
   }
   var x=Math.random()*tot,pick=p[0];
@@ -302,8 +371,44 @@ function newQ(){
   state.last={s:pick.s,f:pick.f,n:pick.n};
   state.q={s:pick.s,f:pick.f,n:pick.n,done:false,ok:false,picked:null,id:Date.now()};
 }
-function record(n,ok){
-  var st=stats.notes[n]||(stats.notes[n]={a:0,c:0});
+function newChordQ(){
+  var cs=INSTR[state.inst].chords;
+  var i=weighted(cs.map(function(c,k){return k;}),'chords',function(k){return cs[k].n;});
+  state.q={i:i,fing:STR.map(function(){return 0;}),done:false,ok:false,picked:null,id:Date.now()};
+}
+// kind: 'find' (Töne auf einer Saite antippen), 'name' (Stufe benennen), 'play' (mit dem Mikrofon spielen)
+function newScaleQ(kind){
+  var roots=state.sharps?[0,1,2,3,4,5,6,7,8,9,10,11]:[0,2,4,5,7,9,11];
+  var t=SCALES.indexOf(weighted(SCALES,'scales',function(s){return s.id;}));
+  var root=roots[Math.floor(Math.random()*roots.length)],set=scaleNotes(root,SCALES[t]);
+  var q={kind:kind,root:root,t:t,done:false,ok:false,id:Date.now()};
+  if(kind==='find'){
+    // Saite wählen, auf der im gewählten Bereich mindestens zwei Töne der Tonleiter liegen
+    for(var tries=0;tries<50;tries++){
+      var s=Math.floor(Math.random()*STR.length),targets=[];
+      for(var f=0;f<=state.maxFret;f++)if(set.indexOf(noteAt(s,f))>=0)targets.push(f);
+      q.s=s;q.targets=targets;
+      if(targets.length>=2)break;
+    }
+    q.found=[];q.miss=0;q.bad=null;
+  }
+  if(kind==='name'){q.k=2+Math.floor(Math.random()*(set.length-1));q.picked=null;}
+  if(kind==='play'){q.seq=set.concat([root]);q.idx=0;}
+  state.q=q;
+}
+function newForMode(){
+  var m=state.mode;
+  if(m==='cfind'||m==='cname')newChordQ();
+  else if(m==='sfind')newScaleQ('find');
+  else if(m==='sname')newScaleQ('name');
+  else if(m==='splay')newScaleQ('play');
+  else newQ();
+}
+// Zählt eine Antwort. bucket = Statistik-Gruppe ('notes', 'chords' oder 'scales'), key = Ton, Akkordname oder Tonleiter-Art.
+function record(key,ok,bucket){
+  bucket=bucket||'notes';
+  stats[bucket]=stats[bucket]||{};
+  var st=stats[bucket][key]||(stats[bucket][key]={a:0,c:0});
   st.a++;stats.total++;
   if(ok){st.c++;stats.correct++;state.streak++;if(state.streak>stats.best)stats.best=state.streak;}
   else state.streak=0;
@@ -314,8 +419,9 @@ function dotSvg(s,f,cls,label){
   var cx=XS[s],cy=f===0?40:TOP+FH*(f-0.5);
   return '<g class="dot '+cls+'"><circle cx="'+cx+'" cy="'+cy+'" r="17"/><text x="'+cx+'" y="'+cy+'">'+label+'</text></g>';
 }
-function fretboard(dots,band){
-  var N=state.maxFret,H=TOP+FH*N+14,o='',i;
+// frets = Anzahl der gezeigten Bünde (Standard: der gewählte Bereich)
+function fretboard(dots,band,frets){
+  var N=frets||state.maxFret,H=TOP+FH*N+14,o='',i;
   var I=INSTR[state.inst],gap=I.gap,x0=XS[0]-28,x1=XS[STR.length-1]+28; // Griffbrett reicht 28 px über die äußeren Saiten hinaus
   o+='<svg class="fb-svg" viewBox="0 0 320 '+H+'" role="img" aria-label="Griffbrett: '+I.name+'">';
   o+='<rect x="'+x0+'" y="'+TOP+'" width="'+(x1-x0)+'" height="'+(FH*N)+'" rx="2" fill="var(--card)" stroke="var(--line)" stroke-width="0.5"/>';
@@ -425,31 +531,182 @@ function viewTune(){
   return o;
 }
 
+// Karte mit Balken je Eintrag einer Statistik-Gruppe (nur Einträge mit Antworten)
+function statCard(title,bucket,label,wide){
+  var b=stats[bucket]||{},keys=Object.keys(b);
+  if(!keys.length)return '';
+  var o='<div class="card"><p class="prompt" style="font-size:17px">'+title+'</p>';
+  keys.forEach(function(k){
+    var st=b[k],pct=Math.round(100*st.c/st.a);
+    o+='<div class="row'+(wide?' wide':'')+'"><span>'+label(k)+'</span><div class="bar"><i style="width:'+pct+'%"></i></div><span>'+pct+'% ('+st.a+')</span></div>';
+  });
+  return o+'</div>';
+}
 function viewStats(){
   var o='<p class="hint" style="margin:0 0 8px">Statistik für '+INSTR[state.inst].name+'</p><div class="big"><div><small>Richtig gesamt</small><strong>'+stats.correct+' / '+stats.total+'</strong></div><div><small>Beste Serie</small><strong>'+stats.best+'</strong></div></div>';
-  o+='<div class="card"><p class="prompt" style="font-size:17px">Trefferquote pro Ton</p>';
-  var any=false;
-  for(var n=0;n<12;n++){
-    var st=stats.notes[n];
-    if(!st){continue;}
-    any=true;
-    var pct=Math.round(100*st.c/st.a);
-    o+='<div class="row"><span>'+NOTES[n]+'</span><div class="bar"><i style="width:'+pct+'%"></i></div><span>'+pct+'% ('+st.a+')</span></div>';
-  }
-  if(!any)o+='<p class="hint" style="margin:8px 0 0">Noch keine Antworten. Starte ein Quiz.</p>';
-  o+='</div><p class="hint">Schwache Töne kommen im Quiz häufiger dran. Der Fortschritt wird nur in diesem Browser gespeichert.</p>';
+  var notes=statCard('Trefferquote pro Ton','notes',function(k){return NOTES[k];});
+  o+=notes||'<div class="card"><p class="prompt" style="font-size:17px">Trefferquote pro Ton</p><p class="hint" style="margin:8px 0 0">Noch keine Antworten. Starte ein Quiz.</p></div>';
+  o+=statCard('Trefferquote pro Akkord','chords',function(k){return k;});
+  o+=statCard('Trefferquote pro Tonleiter','scales',function(k){return SCALES.filter(function(s){return s.id===k;})[0].name;},true);
+  o+='<p class="hint">Schwache Aufgaben kommen im Quiz häufiger dran. Der Fortschritt wird nur in diesem Browser gespeichert.</p>';
   o+='<p><button class="btn" data-act="reset">'+(state.resetArmed?'Wirklich alles löschen?':'Statistik zurücksetzen')+'</button></p>';
   return o;
 }
 
+// ----- Akkorde -----
+// Punkte für ein Akkordbild. labels = Tonnamen in die Punkte schreiben.
+function chordDots(c,labels){
+  return c.f.map(function(f,s){
+    if(f<0)return {s:s,f:0,c:'mute',l:'×'};
+    return {s:s,f:f,c:f===0?'open':'nat',l:labels?NOTES[noteAt(s,f)]:''};
+  });
+}
+function chordNotes(c){
+  var seen=[];
+  c.f.forEach(function(f,s){if(f>=0){var n=NOTES[noteAt(s,f)];if(seen.indexOf(n)<0)seen.push(n);}});
+  return seen.join(' ');
+}
+function fingerText(c){
+  return STR.map(function(s,i){return s.n+' '+(c.f[i]<0?'×':c.f[i]);}).join(' · ');
+}
+function viewChordMap(){
+  var cs=INSTR[state.inst].chords,i=Math.min(state.cSel,cs.length-1),c=cs[i];
+  var o='<div class="chips">';
+  cs.forEach(function(ch,k){o+='<button class="btn'+(k===i?' on':'')+'" data-act="csel" data-v="'+k+'">'+ch.n+'</button>';});
+  o+='</div><div class="card"><p class="prompt">'+c.t+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+chordNotes(c)+'</p><button class="btn" data-act="strum">Anschlagen</button></div>';
+  return o+fretboard(chordDots(c,true),null,4);
+}
+function viewChordFind(){
+  if(!state.q)newChordQ();
+  var q=state.q,I=INSTR[state.inst],c=I.chords[q.i],dots=[],fb='<p class="fb">&nbsp;</p>',btn='';
+  if(q.done){
+    dots=chordDots(c,true).map(function(d){if(d.c!=='mute')d.c='ok';return d;});
+    if(q.ok)fb='<p class="fb ok">Richtig!</p>';
+    else{fb='<p class="fb bad">Richtig wäre: '+fingerText(c)+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }else{
+    q.fing.forEach(function(v,s){
+      if(v<0)dots.push({s:s,f:0,c:'mute',l:'×'});
+      else dots.push({s:s,f:v,c:v===0?'open':'q',l:NOTES[noteAt(s,v)]});
+    });
+    btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="cchk">Prüfen</button></p>';
+  }
+  var hint=q.done?'':'<p class="hint" style="margin:6px 0 0">Tippe auf die Bünde. Saiten ohne Finger bleiben leer.'+(I.mutes?' Tippe oben auf eine Saite, um sie zu dämpfen (×).':'')+'</p>';
+  return '<div class="card"><p class="prompt">Greife '+c.t+'</p>'+hint+fb+btn+'</div>'+fretboard(dots,null,4);
+}
+function viewChordName(){
+  if(!state.q)newChordQ();
+  var q=state.q,cs=INSTR[state.inst].chords,c=cs[q.i],fb='<p class="fb">&nbsp;</p>',btn='';
+  if(q.done){
+    if(q.ok)fb='<p class="fb ok">Richtig!</p>';
+    else{fb='<p class="fb bad">Das ist '+c.t+' ('+chordNotes(c)+').</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }
+  var a='<div class="ans">';
+  cs.forEach(function(ch,k){
+    var cl='btn';
+    if(q.done){if(k===q.i)cl+=' ok';else if(!q.ok&&k===q.picked)cl+=' bad';}
+    a+='<button class="'+cl+'" data-act="cans" data-v="'+k+'">'+ch.n+'</button>';
+  });
+  a+='</div><p class="hint">Nur Buchstabe = Dur · m = Moll · 7 = Septakkord</p>';
+  return '<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,4);
+}
+
+// ----- Tonleitern -----
+function scaleSelects(){
+  var o='<div class="sel"><label>Grundton <select data-act="sroot">';
+  NOTES.forEach(function(n,i){o+='<option value="'+i+'"'+(state.sRoot===i?' selected':'')+'>'+n+'</option>';});
+  o+='</select></label><label>Art <select data-act="stype">';
+  SCALES.forEach(function(s,i){o+='<option value="'+i+'"'+(state.sType===i?' selected':'')+'>'+s.name+'</option>';});
+  return o+'</select></label></div>';
+}
+function viewScaleMap(){
+  var sc=SCALES[state.sType],root=state.sRoot,set=scaleNotes(root,sc),dots=[];
+  for(var s=0;s<STR.length;s++)for(var f=0;f<=state.maxFret;f++){
+    var n=noteAt(s,f);
+    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:n===root?'open':'nat',l:NOTES[n]});
+  }
+  var o=controls()+scaleSelects();
+  o+='<div class="card"><p class="prompt">'+scaleName(root,sc)+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+set.map(function(n){return NOTES[n];}).join(' ')+' · lila = Grundton</p><button class="btn" data-act="splayall">Anhören</button></div>';
+  return o+fretboard(dots,null);
+}
+function viewScaleFind(){
+  if(!state.q)newScaleQ('find');
+  var q=state.q,sc=SCALES[q.t],dots=[],fb='',btn='';
+  q.found.forEach(function(f){dots.push({s:q.s,f:f,c:'ok',l:NOTES[noteAt(q.s,f)]});});
+  if(q.done){
+    q.targets.forEach(function(f){if(q.found.indexOf(f)<0)dots.push({s:q.s,f:f,c:'ok',l:NOTES[noteAt(q.s,f)]});});
+    if(q.ok)fb='<p class="fb ok">Richtig!</p>';
+    else{
+      fb='<p class="fb bad">'+(q.gaveUp?'So liegen die Töne.':'Alle gefunden, aber mit '+q.miss+' Fehlversuch'+(q.miss===1?'':'en')+'.')+'</p>';
+      btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';
+    }
+  }else{
+    if(q.bad!==null)dots.push({s:q.s,f:q.bad,c:'bad',l:NOTES[noteAt(q.s,q.bad)]});
+    fb='<p class="fb">Gefunden '+q.found.length+' von '+q.targets.length+(q.miss?' · Fehlversuche '+q.miss:'')+'</p>';
+    btn='<p style="margin:8px 0 0"><button class="btn" data-act="sgive">Zeigen</button></p>';
+  }
+  return controls()+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' auf der '+STR[q.s].label+'</p>'+fb+btn+'</div>'+fretboard(dots,q.s);
+}
+function viewScaleName(){
+  if(!state.q)newScaleQ('name');
+  var q=state.q,sc=SCALES[q.t],set=scaleNotes(q.root,sc),right=set[q.k-1],fb='<p class="fb">&nbsp;</p>',btn='';
+  if(q.done){
+    var all=set.map(function(n){return NOTES[n];}).join(' ');
+    if(q.ok)fb='<p class="fb ok">Richtig! '+scaleName(q.root,sc)+': '+all+'</p>';
+    else{fb='<p class="fb bad">Es ist '+NOTES[right]+'. '+scaleName(q.root,sc)+': '+all+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }
+  var a='<div class="ans">';
+  for(var n=0;n<12;n++){
+    var cl='btn';
+    if(q.done){if(n===right)cl+=' ok';else if(!q.ok&&n===q.picked)cl+=' bad';}
+    a+='<button class="'+cl+'" data-act="sans" data-n="'+n+'">'+NOTES[n]+'</button>';
+  }
+  a+='</div><p class="hint">Alle Töne mit # geschrieben (das deutsche B heißt hier A#).</p>';
+  return controls()+'<div class="card"><p class="prompt">Welcher Ton ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+'?</p>'+fb+btn+'</div>'+a;
+}
+function viewScalePlay(){
+  if(!state.q)newScaleQ('play');
+  var q=state.q,sc=SCALES[q.t],mic=state.mic,fb='',btn='',live='';
+  var seq='<div class="seq">'+q.seq.map(function(n,i){
+    return '<span class="'+(i<q.idx?'done':(i===q.idx&&!q.done?'cur':''))+'">'+NOTES[n]+'</span>';
+  }).join('')+'</div>';
+  if(q.done){
+    if(q.ok)fb='<p class="fb ok">Geschafft!</p>';
+    else{fb='<p class="fb bad">Die Töne: '+q.seq.map(function(n){return NOTES[n];}).join(' ')+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }else if(mic.on){
+    live='<p class="fb">Ich höre: <b id="live">–</b></p><p style="margin:8px 0 0"><button class="btn" data-act="skip">Überspringen</button></p>';
+  }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon und spiele die Töne nacheinander, beginnend beim Grundton. In welcher Oktave du spielst, ist egal.</p>';
+  var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
+  if(mic.err)m+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
+  return m+score()+'<div class="card"><p class="prompt">Spiele '+scaleName(q.root,sc)+' aufwärts</p>'+seq+(live||fb)+(live?'':btn)+'</div>';
+}
+
+// ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
+var GROUPS=[
+  {id:'notes',name:'Töne',modes:[['map','Karte'],['find','Finden'],['name','Erkennen']]},
+  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cfind','Greifen'],['cname','Erkennen']]},
+  {id:'scales',name:'Tonleitern',modes:[['smap','Karte'],['sfind','Finden'],['sname','Erkennen'],['splay','Spielen']]},
+  {id:'tune',name:'Stimmen',modes:[['tune','Stimmen']]},
+  {id:'stats',name:'Statistik',modes:[['stats','Statistik']]}
+];
+var VIEWS={map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,
+  smap:viewScaleMap,sfind:viewScaleFind,sname:viewScaleName,splay:viewScalePlay,tune:viewTune,stats:viewStats};
+function groupOf(mode){
+  for(var i=0;i<GROUPS.length;i++)for(var j=0;j<GROUPS[i].modes.length;j++)if(GROUPS[i].modes[j][0]===mode)return GROUPS[i];
+  return GROUPS[0];
+}
 function render(){
-  var tabs=[['map','Karte'],['find','Finden'],['name','Erkennen'],['tune','Stimmen'],['stats','Statistik']];
+  var g=groupOf(state.mode);
   var o='<h1>Griffbrett-Trainer</h1><div class="inst">';
   Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
   o+='</div><p class="sub">'+INSTR[state.inst].name+' · '+INSTR[state.inst].tuning+'</p><div class="tabs">';
-  tabs.forEach(function(t){o+='<button class="tab'+(state.mode===t[0]?' on':'')+'" data-act="tab" data-v="'+t[0]+'">'+t[1]+'</button>';});
+  GROUPS.forEach(function(x){o+='<button class="tab'+(x===g?' on':'')+'" data-act="grp" data-v="'+x.id+'">'+x.name+'</button>';});
   o+='</div>';
-  o+=state.mode==='map'?viewMap():state.mode==='find'?viewFind():state.mode==='name'?viewName():state.mode==='tune'?viewTune():viewStats();
+  if(g.modes.length>1){
+    o+='<div class="tabs sub" style="grid-template-columns:repeat('+g.modes.length+',1fr)">';
+    g.modes.forEach(function(m){o+='<button class="tab'+(state.mode===m[0]?' on':'')+'" data-act="tab" data-v="'+m[0]+'">'+m[1]+'</button>';});
+    o+='</div>';
+  }
+  o+=VIEWS[state.mode]();
   document.getElementById('root').innerHTML=o;
 }
 
@@ -458,50 +715,109 @@ function autoAdvance(q,mode,ms){
   var id=q.id;
   setTimeout(function(){if(state.q&&state.q.id===id&&state.mode===mode)next();},ms);
 }
-function next(){newQ();state.mic.stable=0;state.mic.cool=Date.now()+1200;render();}
+function next(){newForMode();state.mic.stable=0;state.mic.cool=Date.now()+1200;render();}
 
 function handle(el){
-  var act=el.getAttribute('data-act');
-  if(act==='tab'){if(state.mic.on)stopMic();state.mode=el.getAttribute('data-v');state.q=null;state.resetArmed=false;render();}
+  var act=el.getAttribute('data-act'),v=el.getAttribute('data-v');
+  var q=state.q,I=INSTR[state.inst];
+  if(act==='tab'||act==='grp'){
+    if(state.mic.on)stopMic();
+    var mode=act==='tab'?v:(state.gm[v]||GROUPS.filter(function(x){return x.id===v;})[0].modes[0][0]); // Gruppe: zuletzt benutzte Unterseite
+    state.mode=mode;state.gm[groupOf(mode).id]=mode;state.q=null;state.resetArmed=false;render();
+  }
   else if(act==='next'){next();}
-  else if(act==='inst'){useInstrument(el.getAttribute('data-v'));render();}
+  else if(act==='inst'){useInstrument(v);render();}
   else if(act==='tstr'){
-    var tv=el.getAttribute('data-v');
-    state.tune.sel=tv;
-    if(tv!=='auto'&&!state.mic.on)play(+tv,0);
+    state.tune.sel=v;
+    if(v!=='auto'&&!state.mic.on)play(+v,0);
     render();
   }
   else if(act==='mic'){if(state.mic.on){stopMic();render();}else startMic();}
   else if(act==='skip'){
-    var sq=state.q;
-    if(sq&&!sq.done){sq.done=true;sq.ok=false;sq.picked=null;record(sq.n,false);render();}
+    if(q&&!q.done){
+      q.done=true;q.ok=false;q.picked=null;
+      if(state.mode==='splay')record(SCALES[q.t].id,false,'scales');else record(q.n,false);
+      render();
+    }
   }
   else if(act==='reset'){
     if(state.resetArmed){stats={total:0,correct:0,best:0,notes:{}};state.streak=0;state.resetArmed=false;save();}
     else state.resetArmed=true;
     render();
   }
+  else if(act==='csel'){state.cSel=+v;render();}
+  else if(act==='strum'){
+    var c=I.chords[Math.min(state.cSel,I.chords.length-1)];
+    playSeq(c.f.map(function(f,s){return f<0?null:STR[s].f*Math.pow(2,f/12);}),90);
+  }
+  else if(act==='splayall'){playSeq(scaleFreqs(state.sRoot,SCALES[state.sType]),380);}
+  else if(act==='cchk'){
+    if(!q||q.done)return;
+    var ch=I.chords[q.i];
+    q.done=true;q.ok=ch.f.every(function(f,i){return f===q.fing[i];});
+    record(ch.n,q.ok,'chords');render();
+    if(q.ok)autoAdvance(q,'cfind',1200);
+  }
+  else if(act==='cans'){
+    if(!q||q.done)return;
+    q.done=true;q.picked=+v;q.ok=(+v===q.i);
+    record(I.chords[q.i].n,q.ok,'chords');render();
+    if(q.ok)autoAdvance(q,'cname',900);
+  }
+  else if(act==='sans'){
+    if(!q||q.done)return;
+    var sc=SCALES[q.t],n=+el.getAttribute('data-n');
+    q.done=true;q.picked=n;q.ok=(n===scaleNotes(q.root,sc)[q.k-1]);
+    record(sc.id,q.ok,'scales');render();
+    if(q.ok)autoAdvance(q,'sname',900);
+  }
+  else if(act==='sgive'){
+    if(!q||q.done)return;
+    q.done=true;q.ok=false;q.gaveUp=true;
+    record(SCALES[q.t].id,false,'scales');render();
+  }
   else if(act==='tap'){
-    var s=+el.getAttribute('data-s'),f=+el.getAttribute('data-f');
-    play(s,f);
-    if(state.mode==='find'&&state.q&&!state.q.done){
-      var q=state.q;
-      q.done=true;q.picked={s:s,f:f};
-      q.ok=(s===q.s&&noteAt(s,f)===q.n);
-      record(q.n,q.ok);
+    var s=+el.getAttribute('data-s'),f=+el.getAttribute('data-f'),m=state.mode;
+    if(m==='cfind'&&q&&!q.done){
+      // Griff bauen: oben (Bund 0) dämpfen, sonst Finger setzen oder wieder wegnehmen
+      if(f===0){if(I.mutes)q.fing[s]=q.fing[s]===-1?0:-1;}
+      else{q.fing[s]=q.fing[s]===f?0:f;play(s,f);}
       render();
-      if(q.ok)autoAdvance(q,'find',900);
+    }
+    else if(m==='sfind'&&q&&!q.done&&s===q.s){
+      play(s,f);
+      if(q.found.indexOf(f)<0){
+        if(q.targets.indexOf(f)>=0){
+          q.found.push(f);q.bad=null;
+          if(q.found.length===q.targets.length){
+            q.done=true;q.ok=(q.miss===0);
+            record(SCALES[q.t].id,q.ok,'scales');render();
+            if(q.ok)autoAdvance(q,'sfind',1200);
+            return;
+          }
+        }else{q.miss++;q.bad=f;}
+      }
+      render();
+    }
+    else{
+      play(s,f);
+      if(m==='find'&&q&&!q.done){
+        q.done=true;q.picked={s:s,f:f};
+        q.ok=(s===q.s&&noteAt(s,f)===q.n);
+        record(q.n,q.ok);
+        render();
+        if(q.ok)autoAdvance(q,'find',900);
+      }
     }
   }
   else if(act==='ans'){
-    var qq=state.q;
-    if(!qq||qq.done)return;
-    var n=+el.getAttribute('data-n');
-    play(qq.s,qq.f);
-    qq.done=true;qq.picked=n;qq.ok=(n===qq.n);
-    record(qq.n,qq.ok);
+    if(!q||q.done)return;
+    var nn=+el.getAttribute('data-n');
+    play(q.s,q.f);
+    q.done=true;q.picked=nn;q.ok=(nn===q.n);
+    record(q.n,q.ok);
     render();
-    if(qq.ok)autoAdvance(qq,'name',900);
+    if(q.ok)autoAdvance(q,'name',900);
   }
 }
 var root=document.getElementById('root');
@@ -509,7 +825,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound')return;
+  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -519,6 +835,8 @@ root.addEventListener('change',function(e){
   if(a==='range'){state.maxFret=+el.value;state.q=null;state.last=null;render();}
   else if(a==='sharps'){state.sharps=el.checked;state.q=null;state.last=null;render();}
   else if(a==='sound'){state.sound=el.checked;}
+  else if(a==='sroot'){state.sRoot=+el.value;render();}
+  else if(a==='stype'){state.sType=+el.value;render();}
 });
 (function(){
   var saved=null;

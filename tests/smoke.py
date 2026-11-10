@@ -35,6 +35,29 @@ def launch(p, wav):
         '--no-sandbox', '--use-fake-ui-for-media-stream', '--use-fake-device-for-media-stream',
         '--use-file-for-fake-audio-capture=' + wav])
 
+def go(pg, mode):
+    """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
+    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords',
+              'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
+    pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
+    if pg.evaluate('state.mode') != mode:
+        pg.click(f'[data-act="tab"][data-v="{mode}"]')
+
+def make_seq_wav(name, midis, dur=0.9):
+    """Töne nacheinander (wie eine gespielte Tonleiter), Mono, 48 kHz."""
+    path = os.path.join(tmp, name)
+    sr = 48000
+    w = wave.open(path, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+    frames = []
+    for m in midis:
+        f = 440 * 2 ** ((m - 69) / 12)
+        for i in range(int(sr * dur)):
+            t = i / sr
+            v = 0.30*math.sin(2*math.pi*f*t) + 0.15*math.sin(4*math.pi*f*t) + 0.08*math.sin(6*math.pi*f*t)
+            frames.append(struct.pack('<h', int(v * 20000)))
+    w.writeframes(b''.join(frames)); w.close()
+    return path
+
 def new_page(browser, errors, bad):
     ctx = browser.new_context(viewport={'width': 390, 'height': 800}, permissions=['microphone'])
     pg = ctx.new_page()
@@ -56,15 +79,15 @@ try:
         b = launch(p, a440)
         pg = new_page(b, errors, bad)
 
-        for v in ['map', 'find', 'name', 'tune', 'stats']:
-            pg.click(f'[data-act="tab"][data-v="{v}"]')
-            check('Tab ' + v, pg.locator('.tab.on').get_attribute('data-v') == v)
+        for v in ['map', 'find', 'name', 'cmap', 'cfind', 'cname', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
+            go(pg, v)
+            check('Seite ' + v, pg.evaluate('state.mode') == v and pg.locator('#root .card, #root svg').count() > 0)
 
-        pg.click('[data-v="map"]')
+        go(pg, 'map')
         expected = pg.evaluate("(function(){var c=0;for(var s=0;s<4;s++)for(var f=0;f<=5;f++)if(isNat(noteAt(s,f)))c++;return c})()")
         check('Karte zeigt alle Naturtöne Bund 0-5', pg.locator('.dot').count() == expected, f'{expected} erwartet')
 
-        pg.click('[data-v="find"]')
+        go(pg, 'find')
         pg.evaluate("state.q={s:1,f:2,n:noteAt(1,2),done:false,ok:false,picked:null,id:1};render()")
         pg.click('rect.hit[data-s="1"][data-f="2"]')
         check('Finden: richtige Stelle', pg.evaluate("state.q.ok===true"))
@@ -74,7 +97,7 @@ try:
         pg.click('rect.hit[data-s="2"][data-f="1"]')
         check('Finden: falsche Stelle zeigt Weiter', pg.evaluate("state.q.done&&!state.q.ok") and pg.locator('[data-act="next"]').count() == 1)
 
-        pg.click('[data-v="name"]')
+        go(pg, 'name')
         pg.evaluate("state.q={s:0,f:2,n:noteAt(0,2),done:false,ok:false,picked:null,id:3};render()")
         pg.click('.ans .btn:text-is("A")')
         check('Erkennen: A auf G-Saite Bund 2', pg.evaluate("state.q.ok===true"))
@@ -91,7 +114,7 @@ try:
         pg.click('[data-act="mic"]')
         check('Mikrofon lässt sich stoppen', pg.evaluate("state.mic.on===false"))
 
-        pg.click('[data-v="find"]')
+        go(pg, 'find')
         pg.evaluate("state.q={s:1,f:0,n:0,done:false,ok:false,picked:null,id:5};render()")   # Ziel C, gespielt wird A
         pg.click('[data-act="mic"]'); pg.wait_for_timeout(2500)
         check('Finden mit Mikrofon: falscher Ton zählt nicht', pg.evaluate("state.q.id===5&&state.q.done===false"))
@@ -134,13 +157,86 @@ try:
         check('Gitarre: Karte zeigt alle Naturtöne', pg.locator('.dot').count() == expected, f'{expected} erwartet')
         check('Gitarre: eigene Statistik', pg.evaluate("stats.total")==0)
         check('Gitarre: Auswahl bleibt nach Neuladen', (pg.reload() or True) and pg.evaluate("state.inst")=='gtr')
-        pg.click('[data-v="find"]')
+        go(pg, 'find')
         pg.evaluate("state.q={s:2,f:0,n:2,done:false,ok:false,picked:null,id:11};render()")  # D auf der D-Saite
         pg.click('[data-act="mic"]'); pg.wait_for_timeout(2500)
         check('Gitarre Finden mit Mikrofon: D-Saite', pg.evaluate("stats.correct")>=1 and pg.evaluate("state.q.id!==11||state.q.ok"))
         pg.click('[data-act="inst"][data-v="uke"]')
         check('Wechsel zur Ukulele stoppt Mikrofon', pg.evaluate("state.mic.on===false&&STR.length===4"))
         check('Gitarre/Ukulele: keine Konsolenfehler', not errors, str(errors[:3]))
+        b.close()
+
+        # --- Akkorde und Tonleitern (Ukulele, dann Gitarre) ---
+        b = launch(p, a440)
+        errors, bad = [], []
+        pg = new_page(b, errors, bad)
+        # Griffe: jeder Ton muss zum Akkordnamen passen (Stammton der Dur/Moll-Akkorde im Griff enthalten)
+        chk = pg.evaluate("""(function(){var bad=[];var root={C:0,Am:9,F:5,G:7,G7:7,Dm:2,Em:4,A:9,D:2,C7:0,E:4,E7:4};
+          Object.keys(INSTR).forEach(function(id){useInstrument(id);INSTR[id].chords.forEach(function(c){
+            var ns=[];c.f.forEach(function(f,s){if(f>=0)ns.push(noteAt(s,f));});
+            if(ns.indexOf(root[c.n])<0)bad.push(id+' '+c.n+' ohne Grundton');
+            var third=c.n.indexOf('m')>=0&&c.n!=='Em7'?3:4;var has3=ns.indexOf((root[c.n]+third)%12)>=0;
+            if(!has3)bad.push(id+' '+c.n+' ohne Terz');
+            if(c.f.length!==STR.length)bad.push(id+' '+c.n+' Länge');
+          });});useInstrument('uke');return bad;})()""")
+        check('Akkordgriffe enthalten Grundton und Terz', chk == [], str(chk))
+        go(pg, 'cmap')
+        check('Akkordkarte: ein Punkt je Saite', pg.locator('.dot').count() == 4, str(pg.locator('.dot').count()))
+        go(pg, 'cfind')
+        pg.evaluate("state.q={i:0,fing:[0,0,0,0],done:false,ok:false,picked:null,id:21};render()")   # C-Dur
+        pg.click('rect.hit[data-s="3"][data-f="3"]')
+        pg.click('[data-act="cchk"]')
+        check('Greifen: C-Dur richtig', pg.evaluate("state.q.ok===true"))
+        pg.evaluate("state.q={i:0,fing:[0,0,0,0],done:false,ok:false,picked:null,id:22};render()")
+        pg.click('[data-act="cchk"]')
+        check('Greifen: leere Saiten sind falsch', pg.evaluate("state.q.done&&!state.q.ok") and 'Richtig wäre' in pg.inner_text('.fb'))
+        go(pg, 'cname')
+        pg.evaluate("state.q={i:1,fing:[],done:false,ok:false,picked:null,id:23};render()")          # A-Moll
+        pg.click('.ans .btn:text-is("Am")')
+        check('Akkord erkennen: Am', pg.evaluate("state.q.ok===true&&stats.chords.Am.c===1"))
+        go(pg, 'smap')
+        pg.evaluate("state.sRoot=0;state.sType=0;render()")
+        exp = pg.evaluate("(function(){var set=[0,2,4,5,7,9,11],c=0;for(var s=0;s<4;s++)for(var f=0;f<=5;f++)if(set.indexOf(noteAt(s,f))>=0)c++;return c})()")
+        check('Tonleiterkarte C-Dur', pg.locator('.dot').count() == exp, str(exp))
+        go(pg, 'sfind')
+        pg.evaluate("state.q={kind:'find',root:0,t:0,s:1,targets:[0,2,4,5],found:[],miss:0,bad:null,done:false,ok:false,id:31};render()")  # C-Dur auf der C-Saite
+        pg.click('rect.hit[data-s="1"][data-f="1"]')
+        check('Tonleiter finden: Fehlversuch', pg.evaluate("state.q.miss===1&&!state.q.done"))
+        for f in (0, 2, 4, 5):
+            pg.click(f'rect.hit[data-s="1"][data-f="{f}"]')
+        check('Tonleiter finden: alle gefunden, aber mit Fehler', pg.evaluate("state.q.done&&!state.q.ok"))
+        pg.evaluate("state.q={kind:'find',root:0,t:0,s:1,targets:[0,2,4,5],found:[],miss:0,bad:null,done:false,ok:false,id:32};render()")
+        for f in (0, 2, 4, 5):
+            pg.click(f'rect.hit[data-s="1"][data-f="{f}"]')
+        check('Tonleiter finden: fehlerfrei richtig', pg.evaluate("state.q.ok===true&&stats.scales.maj.c>=1"))
+        go(pg, 'sname')
+        pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,picked:null,done:false,ok:false,id:41};render()")   # 3. Ton von C-Dur = E
+        pg.click('.ans .btn:text-is("E")')
+        check('Tonleiter erkennen: 3. Ton von C-Dur', pg.evaluate("state.q.ok===true"))
+        pg.click('[data-act="inst"][data-v="gtr"]')
+        go(pg, 'cfind')
+        pg.evaluate("state.q={i:0,fing:[0,0,0,0,0,0],done:false,ok:false,picked:null,id:51};render()")     # C-Dur: x32010
+        pg.click('rect.hit[data-s="0"][data-f="0"]')                      # tiefe E-Saite dämpfen
+        for s, f in ((1, 3), (2, 2), (4, 1)):
+            pg.click(f'rect.hit[data-s="{s}"][data-f="{f}"]')
+        pg.click('[data-act="cchk"]')
+        check('Gitarre Greifen: C-Dur mit gedämpfter Saite', pg.evaluate("state.q.ok===true"))
+        go(pg, 'stats')
+        check('Statistik zeigt Akkorde und Tonleitern', 'Akkord' in pg.inner_text('#root') and 'Tonleiter' in pg.inner_text('#root'))
+        check('Akkorde/Tonleitern: keine Konsolenfehler', not errors and not bad, str((errors + bad)[:3]))
+        b.close()
+
+        # Tonleiter spielen: C-Dur aufwärts C4..C5 mit dem simulierten Mikrofon
+        scale = make_seq_wav('cmaj.wav', [60, 62, 64, 65, 67, 69, 71, 72])
+        b = launch(p, scale)
+        errors, bad = [], []
+        pg = new_page(b, errors, bad)
+        go(pg, 'splay')
+        pg.evaluate("state.q={kind:'play',root:0,t:0,seq:[0,2,4,5,7,9,11,0],idx:0,done:false,ok:false,id:61};render()")
+        pg.click('[data-act="mic"]')
+        pg.wait_for_timeout(9500)
+        check('Tonleiter spielen: C-Dur erkannt', pg.evaluate("(stats.scales.maj||{c:0}).c")>=1, pg.evaluate("JSON.stringify(state.q)"))
+        check('Tonleiter spielen: keine Konsolenfehler', not errors and not bad, str((errors + bad)[:3]))
         b.close()
 finally:
     srv.terminate()
