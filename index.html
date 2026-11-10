@@ -677,7 +677,18 @@ function viewChordMap(){
   if(g.strict){
     var rest=g.all.filter(function(k){return g.inKey.indexOf(k)<0;});
     o+='<p class="hint" style="margin:0 0 6px">In '+scaleName(state.kRoot,SCALES[state.kType])+'</p>'+chips(g.inKey);
-    if(rest.length)o+='<p class="hint" style="margin:0 0 6px">Weitere Akkorde</p>'+chips(rest);
+    if(rest.length){
+      // Weitere Akkorde als Auswahlliste, nach Art gruppiert
+      o+='<div class="sel"><label><select data-act="cmore"><option value="-1">Weitere Akkorde …</option>';
+      [['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
+        var part=rest.filter(function(k){return cs[k].q===qt[0];});
+        if(!part.length)return;
+        o+='<optgroup label="'+qt[1]+'">';
+        part.forEach(function(k){o+='<option value="'+k+'"'+(k===i?' selected':'')+'>'+cs[k].n+' ('+cs[k].t+')</option>';});
+        o+='</optgroup>';
+      });
+      o+='</select></label></div>';
+    }
   }else{
     [['','Dur'],['m','Moll'],['7','Septakkorde']].forEach(function(qt){
       o+='<p class="hint" style="margin:0 0 6px">'+qt[1]+'</p>'+chips(g.all.filter(function(k){return cs[k].q===qt[0];}));
@@ -961,7 +972,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='cmore')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -973,6 +984,7 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
+  else if(a==='cmore'){if(+el.value>=0){state.cSel=+el.value;render();}}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
   else if(a==='ktype'){state.kType=+el.value;state.q=null;savePick();render();}
   else if(a==='proot'){state.pRoot=+el.value;state.q=null;savePick();render();}
