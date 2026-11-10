@@ -254,7 +254,7 @@ try:
         pg.click('[data-act="bchk"]')
         check('Akkord bauen: Dm aus C-Dur', pg.evaluate("state.q.ok===true&&stats.degrees['Dur ii'].c===1"))
         pg.evaluate("state.q={kind:'build',root:0,t:0,d:1,tri:triadAt(0,0,1),sel:[],done:false,ok:false,picked:null,id:82};render()")
-        for n in ('D', 'F#', 'A'):
+        for n in ('D', 'Fis/Ges', 'A'):
             pg.click(f'.ans .btn:text-is("{n}")')
         pg.click('[data-act="bchk"]')
         check('Akkord bauen: falsche Töne', pg.evaluate("state.q.done&&!state.q.ok") and 'Richtig wäre' in pg.inner_text('.fb'))
@@ -327,6 +327,24 @@ try:
               if(I.chords[r.i].n!==c.n||r.score<0.03||r.margin<0.03)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
             });});return {n:n,bad:bad};})()""")
         check('Akkorderkennung: alle ' + str(res['n']) + ' Griffe richtig', not res['bad'], str(res['bad']))
+        b.close()
+
+        # Tonnamen: deutsches System mit Doppelnamen für Zwischentöne
+        b = launch(p, a440)
+        errors, bad = [], []
+        pg = new_page(b, errors, bad)
+        names = pg.evaluate("NAMES.join(' ')")
+        check('Tonnamen mit Doppelnamen', names == 'C Cis/Des D Dis/Es E F Fis/Ges G Gis/As A Ais/B H', names)
+        check('Tonartname mit beiden Namen', pg.evaluate("scaleName(6,SCALES[0])") == 'Fis-Dur / Ges-Dur' and pg.evaluate("scaleName(0,SCALES[1])") == 'C-Moll')
+        chn = pg.evaluate("(function(){var c=INSTR.uke.chords,u={};c.forEach(function(x){u[x.n]=1});return [Object.keys(u).length,c.length,c[1].n,c[1].t,c[13].n,c[25].n,c[37].n,c[10].n]})()")
+        check('Akkordnamen eindeutig, deutsch', chn == [48, 48, 'Cis', 'Cis-Dur / Des-Dur', 'Cism', 'Cis°', 'Cis7', 'Ais'], str(chn))
+        go(pg, 'map')
+        pg.check('input[data-act="sharps"]')
+        check('Karte: Zwischentöne zweizeilig', pg.locator('.dot text.two').count() >= 2 and 'Zwischentöne' in pg.inner_text('#root'))
+        pg.evaluate("localStorage.setItem('ukulele-trainer-v1',JSON.stringify({total:3,correct:3,best:3,notes:{},chords:{'C#m':{a:3,c:3},'Am':{a:1,c:1}}}))")
+        pg.reload()
+        check('Alte Akkordschlüssel werden umbenannt', pg.evaluate("stats.chords.Cism&&stats.chords.Cism.a===3&&stats.chords.Am.a===1&&!stats.chords['C#m']"))
+        check('Tonnamen: keine Konsolenfehler', not errors and not bad, str((errors + bad)[:3]))
         b.close()
 
         # Akkord spielen mit dem simulierten Mikrofon: Ukulele C-Dur (G4 C4 E4 C5), danach falscher Akkord
