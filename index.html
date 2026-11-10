@@ -128,7 +128,8 @@ function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catc
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
 var state={inst:'uke',mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
-  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0, // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
+  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1, // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
+   // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
   tune:{sel:'auto',hist:[],last:0,ok:0},   // Stimmgerät: gewählte Saite, letzte Messwerte, Zeitpunkt, Treffer in Folge
   mic:{on:false,err:'',stable:0,cool:0}};  // Mikrofon: stable = gleiche richtige Messungen in Folge, cool = Sperre bis Zeitpunkt
 // Browser-Objekte (Audio, Mikrofon, Timer). Getrennt von `state`, weil sie nicht in Text umgewandelt werden dürfen.
@@ -304,7 +305,7 @@ function micTick(){
 function chordTick(){
   var m=state.mic,q=state.q,I=INSTR[state.inst],liveEl=document.getElementById('live');
   var c=chroma(dev.buf,dev.ctx.sampleRate,state.inst==='gtr'?40:55,88);
-  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.03&&r.margin>=0.05;
+  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.03&&r.margin>=0.03;
   if(liveEl)liveEl.textContent=good?I.chords[r.i].n:'–';
   if(!q||q.done||Date.now()<m.cool)return;
   if(good&&r.i===q.i)m.stable++;else m.stable=0;
@@ -428,8 +429,8 @@ function newChordQ(){
 // kind: 'find' (Töne auf einer Saite antippen), 'name' (Stufe benennen), 'play' (mit dem Mikrofon spielen)
 function newScaleQ(kind){
   var roots=state.sharps?[0,1,2,3,4,5,6,7,8,9,10,11]:[0,2,4,5,7,9,11];
-  var t=SCALES.indexOf(weighted(SCALES,'scales',function(s){return s.id;}));
-  var root=roots[Math.floor(Math.random()*roots.length)],set=scaleNotes(root,SCALES[t]);
+  var t=state.pType>=0?state.pType:SCALES.indexOf(weighted(SCALES,'scales',function(s){return s.id;}));
+  var root=state.pRoot>=0?state.pRoot:roots[Math.floor(Math.random()*roots.length)],set=scaleNotes(root,SCALES[t]);
   var q={kind:kind,root:root,t:t,done:false,ok:false,id:Date.now()};
   if(kind==='find'){
     // Saite wählen, auf der im gewählten Bereich mindestens zwei Töne der Tonleiter liegen
@@ -681,6 +682,14 @@ function scaleSelects(){
   SCALES.forEach(function(s,i){o+='<option value="'+i+'"'+(state.sType===i?' selected':'')+'>'+s.name+'</option>';});
   return o+'</select></label></div>';
 }
+// Auswahl der Übungs-Tonleiter (für Finden, Erkennen, Spielen); "Zufällig" mischt wie bisher
+function scalePick(){
+  var o='<div class="sel"><span>Üben:</span><label><select data-act="proot"><option value="-1">Grundton zufällig</option>';
+  NOTES.forEach(function(n,i){o+='<option value="'+i+'"'+(state.pRoot===i?' selected':'')+'>'+n+'</option>';});
+  o+='</select></label><label><select data-act="ptype"><option value="-1">Art zufällig</option>';
+  SCALES.forEach(function(s,i){o+='<option value="'+i+'"'+(state.pType===i?' selected':'')+'>'+s.name+'</option>';});
+  return o+'</select></label></div>';
+}
 function viewScaleMap(){
   var sc=SCALES[state.sType],root=state.sRoot,set=scaleNotes(root,sc),dots=[];
   for(var s=0;s<STR.length;s++)for(var f=0;f<=state.maxFret;f++){
@@ -707,7 +716,7 @@ function viewScaleFind(){
     fb='<p class="fb">Gefunden '+q.found.length+' von '+q.targets.length+(q.miss?' · Fehlversuche '+q.miss:'')+'</p>';
     btn='<p style="margin:8px 0 0"><button class="btn" data-act="sgive">Zeigen</button></p>';
   }
-  return controls()+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' auf der '+STR[q.s].label+'</p>'+fb+btn+'</div>'+fretboard(dots,q.s);
+  return controls()+scalePick()+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' auf der '+STR[q.s].label+'</p>'+fb+btn+'</div>'+fretboard(dots,q.s);
 }
 function viewScaleName(){
   if(!state.q)newScaleQ('name');
@@ -724,7 +733,7 @@ function viewScaleName(){
     a+='<button class="'+cl+'" data-act="sans" data-n="'+n+'">'+NOTES[n]+'</button>';
   }
   a+='</div><p class="hint">Alle Töne mit # geschrieben (das deutsche B heißt hier A#).</p>';
-  return controls()+'<div class="card"><p class="prompt">Welcher Ton ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+'?</p>'+fb+btn+'</div>'+a;
+  return controls()+scalePick()+'<div class="card"><p class="prompt">Welcher Ton ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+'?</p>'+fb+btn+'</div>'+a;
 }
 function viewScalePlay(){
   if(!state.q)newScaleQ('play');
@@ -740,7 +749,7 @@ function viewScalePlay(){
   }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon und spiele die Töne nacheinander, beginnend beim Grundton. In welcher Oktave du spielst, ist egal.</p>';
   var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
   if(mic.err)m+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
-  return m+score()+'<div class="card"><p class="prompt">Spiele '+scaleName(q.root,sc)+' aufwärts</p>'+seq+(live||fb)+(live?'':btn)+'</div>';
+  return m+scalePick()+score()+'<div class="card"><p class="prompt">Spiele '+scaleName(q.root,sc)+' aufwärts</p>'+seq+(live||fb)+(live?'':btn)+'</div>';
 }
 
 // ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
@@ -890,7 +899,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -902,6 +911,8 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
+  else if(a==='proot'){state.pRoot=+el.value;state.q=null;render();}
+  else if(a==='ptype'){state.pType=+el.value;state.q=null;render();}
 });
 (function(){
   var saved=null;

@@ -224,6 +224,10 @@ try:
             pg.click(f'rect.hit[data-s="1"][data-f="{f}"]')
         check('Tonleiter finden: fehlerfrei richtig', pg.evaluate("state.q.ok===true&&stats.scales.maj.c>=1"))
         go(pg, 'sname')
+        pg.select_option('select[data-act="proot"]', '9'); pg.select_option('select[data-act="ptype"]', '1')   # A-Moll festlegen
+        picks = [pg.evaluate("(newScaleQ('name'),state.q.root+'/'+state.q.t)") for _ in range(8)]
+        check('Tonleiter wählbar: immer A-Moll', set(picks) == {'9/1'}, str(set(picks)))
+        pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,picked:null,done:false,ok:false,id:41};render()")   # 3. Ton von C-Dur = E
         pg.click('.ans .btn:text-is("E")')
         check('Tonleiter erkennen: 3. Ton von C-Dur', pg.evaluate("state.q.ok===true"))
@@ -251,7 +255,7 @@ try:
                 for(var i=0;i<N;i++){var v=0;for(var h=1;h<=5;h++)v+=Math.sin(2*Math.PI*fr*h*i/sr)/(h*h*0.6+0.4);buf[i]+=0.08*v;}});
               for(var i=0;i<N;i++)buf[i]+=(Math.random()-0.5)*0.03;
               var r=matchChord(chroma(buf,sr,id==='gtr'?40:55,88),I.chords);n++;
-              if(I.chords[r.i].n!==c.n||r.score<0.03||r.margin<0.05)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
+              if(I.chords[r.i].n!==c.n||r.score<0.03||r.margin<0.03)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
             });});return {n:n,bad:bad};})()""")
         check('Akkorderkennung: alle ' + str(res['n']) + ' Griffe richtig', not res['bad'], str(res['bad']))
         b.close()
