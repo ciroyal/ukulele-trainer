@@ -620,7 +620,7 @@ function controls(){
   var o='<div class="ctl"><label>Bereich <select data-act="range">';
   [5,7,12].forEach(function(v){o+='<option value="'+v+'"'+(state.maxFret===v?' selected':'')+'>Bund 0–'+v+'</option>';});
   o+='</select></label><label><input type="checkbox" data-act="sharps"'+(state.sharps?' checked':'')+'> Zwischentöne (#)</label>';
-  o+='<label><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Ton</label></div>';
+  o+='</div>';
   return o;
 }
 
@@ -1015,7 +1015,7 @@ function render(){
   if(state.settings){
     o+='<div class="card"><p class="prompt" style="font-size:17px">Einstellungen</p><p class="hint" style="margin:4px 0 8px">Instrument</p><div class="inst" style="margin:0">';
     Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-    o+='</div></div>';
+    o+='</div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
   o+='<p class="sub">Stimmung '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
@@ -1187,7 +1187,7 @@ root.addEventListener('change',function(e){
   var a=el.getAttribute('data-act');
   if(a==='range'){state.maxFret=+el.value;state.q=null;state.last=null;render();}
   else if(a==='sharps'){state.sharps=el.checked;state.q=null;state.last=null;render();}
-  else if(a==='sound'){state.sound=el.checked;}
+  else if(a==='sound'){state.sound=el.checked;try{localStorage.setItem('griffbrett-sound',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
@@ -1205,6 +1205,7 @@ function savePick(){
     if(pk.length>=2&&pk[0]>=-1&&pk[0]<12&&pk[1]>=-1&&pk[1]<SCALES.length&&pk[0]%1===0&&pk[1]%1===0){state.pRoot=pk[0];state.pType=pk[1];}
     if(pk.length===4&&pk[2]>=-1&&pk[2]<12&&pk[3]>=0&&pk[3]<=1&&pk[2]%1===0&&pk[3]%1===0){state.kRoot=pk[2];state.kType=pk[3];}
   }catch(e){/* Speicher gesperrt oder Wert kaputt: zufällig */}
+  try{if(localStorage.getItem('griffbrett-sound')==='0')state.sound=false;}catch(e){/* Speicher gesperrt: Ton bleibt an */}
   var saved=null;
   try{saved=localStorage.getItem('griffbrett-inst');}catch(e){/* Speicher gesperrt: mit Ukulele starten */}
   useInstrument(INSTR[saved]?saved:'uke');
