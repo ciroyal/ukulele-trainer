@@ -206,6 +206,34 @@ function detect(buf,sr,lowHz){
   return null;
 }
 
+// ===== Akkorde erkennen =====
+// Chroma: Energie je Tonname (0-11), gemessen mit dem Goertzel-Verfahren an den Frequenzen aller Halbtöne von lo bis hi (MIDI).
+// Gibt null zurück, wenn es zu leise ist.
+function chroma(buf,sr,lo,hi){
+  var n=buf.length,i,rms=0,w=new Float32Array(n);
+  for(i=0;i<n;i++){w[i]=buf[i]*(0.5-0.5*Math.cos(2*Math.PI*i/(n-1)));rms+=buf[i]*buf[i];}
+  if(Math.sqrt(rms/n)<0.01)return null;
+  var c=[0,0,0,0,0,0,0,0,0,0,0,0];
+  for(var m=lo;m<=hi;m++){
+    var fr=440*Math.pow(2,(m-69)/12),k=2*Math.cos(2*Math.PI*fr/sr),s1=0,s2=0;
+    for(i=0;i<n;i++){var s0=w[i]+k*s1-s2;s2=s1;s1=s0;}
+    c[m%12]+=Math.sqrt(Math.max(0,s1*s1+s2*s2-k*s1*s2)); // Betrag
+  }
+  return c;
+}
+// Vergleicht das Chroma mit den Tönen jedes Akkords (Kosinus-Ähnlichkeit). Gibt {i:bester Akkord, score, margin} zurück.
+function matchChord(c,chords){
+  var best=-1,bs=0,second=0;
+  chords.forEach(function(ch,k){
+    var set=[];ch.f.forEach(function(f,s){if(f>=0){var n=noteAt(s,f);if(set.indexOf(n)<0)set.push(n);}});
+    var dot=0,nc=0;
+    for(var p=0;p<12;p++){nc+=c[p]*c[p];if(set.indexOf(p)>=0)dot+=c[p];}
+    var sc=dot/(Math.sqrt(nc)*Math.sqrt(set.length)||1);
+    if(sc>bs){second=bs;bs=sc;best=k;}else if(sc>second)second=sc;
+  });
+  return {i:best,score:bs,margin:bs-second};
+}
+
 // ===== Mikrofon =====
 function stopMic(){
   if(dev.timer)clearInterval(dev.timer);
@@ -228,7 +256,7 @@ function startMic(){
   navigator.mediaDevices.getUserMedia({audio:{echoCancellation:false,noiseSuppression:false,autoGainControl:false}}).then(function(stream){
     dev.stream=stream;dev.ctx=ctx;
     var src=ctx.createMediaStreamSource(stream),an=ctx.createAnalyser();
-    an.fftSize=INSTR[state.inst].fft; // Ukulele ≈ 43 ms, Gitarre ≈ 85 ms bei 48 kHz: mindestens 7 Perioden des tiefsten Tons
+    an.fftSize=state.mode==='cplay'?8192:INSTR[state.inst].fft; // Akkorde brauchen mehr Auflösung, um die Töne zu trennen; // Ukulele ≈ 43 ms, Gitarre ≈ 85 ms bei 48 kHz: mindestens 7 Perioden des tiefsten Tons
     src.connect(an);
     dev.an=an;dev.buf=new Float32Array(an.fftSize);
     state.mic.on=true;state.mic.stable=0;state.mic.cool=Date.now()+500; // kurze Sperre, damit nichts sofort zählt
@@ -246,6 +274,7 @@ function micTick(){
   var m=state.mic;
   if(!dev.an)return;
   dev.an.getFloatTimeDomainData(dev.buf);
+  if(state.mode==='cplay'){chordTick();return;}
   var f=detect(dev.buf,dev.ctx.sampleRate,INSTR[state.inst].lowHz);
   if(state.mode==='tune'){tickTuner(f);return;}
   var liveEl=document.getElementById('live'),mk=document.getElementById('mk');
@@ -263,6 +292,20 @@ function micTick(){
     record(q.n,true);m.stable=0;render();
     autoAdvance(q,'find',1200);
   }
+}
+
+// Akkord spielen: Der Zielakkord muss 4 Messungen in Folge (≈ 0,25 s) am besten passen und klar vor dem zweitbesten liegen.
+function chordTick(){
+  var m=state.mic,q=state.q,I=INSTR[state.inst],liveEl=document.getElementById('live');
+  var c=chroma(dev.buf,dev.ctx.sampleRate,state.inst==='gtr'?40:55,88);
+  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.8&&r.margin>=0.02;
+  if(liveEl)liveEl.textContent=good?I.chords[r.i].n:'–';
+  if(!q||q.done||Date.now()<m.cool)return;
+  if(good&&r.i===q.i)m.stable++;else m.stable=0;
+  if(m.stable<4)return;
+  m.stable=0;q.done=true;q.ok=true;
+  record(I.chords[q.i].n,true,'chords');render();
+  autoAdvance(q,'cplay',1500);
 }
 
 // Tonleiter spielen: der erwartete Ton (nur Tonname, Oktave egal) muss 4 Messungen in Folge stimmen, dann geht es zum nächsten.
@@ -398,7 +441,7 @@ function newScaleQ(kind){
 }
 function newForMode(){
   var m=state.mode;
-  if(m==='cfind'||m==='cname')newChordQ();
+  if(m==='cfind'||m==='cname'||m==='cplay')newChordQ();
   else if(m==='sfind')newScaleQ('find');
   else if(m==='sname')newScaleQ('name');
   else if(m==='splay')newScaleQ('play');
@@ -610,6 +653,20 @@ function viewChordName(){
   return '<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,4);
 }
 
+function viewChordPlay(){
+  if(!state.q)newChordQ();
+  var q=state.q,c=INSTR[state.inst].chords[q.i],mic=state.mic,fb='',btn='';
+  if(q.done){
+    if(q.ok)fb='<p class="fb ok">Richtig!</p>';
+    else{fb='<p class="fb bad">Übersprungen: '+c.t+' ('+chordNotes(c)+')</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+  }else if(mic.on){
+    fb='<p class="fb">Ich höre: <b id="live">–</b></p><p style="margin:8px 0 0"><button class="btn" data-act="skip">Überspringen</button></p>';
+  }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon, greife den Akkord und schlage alle Saiten an. Lass ihn klingen, bis er erkannt wird.</p>';
+  var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
+  if(mic.err)m+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
+  return m+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,4);
+}
+
 // ----- Tonleitern -----
 function scaleSelects(){
   var o='<div class="sel"><label>Grundton <select data-act="sroot">';
@@ -683,12 +740,12 @@ function viewScalePlay(){
 // ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
 var GROUPS=[
   {id:'notes',name:'Töne',modes:[['map','Karte'],['find','Finden'],['name','Erkennen']]},
-  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cfind','Greifen'],['cname','Erkennen']]},
+  {id:'chords',name:'Akkorde',modes:[['cmap','Karte'],['cfind','Greifen'],['cname','Erkennen'],['cplay','Spielen']]},
   {id:'scales',name:'Tonleitern',modes:[['smap','Karte'],['sfind','Finden'],['sname','Erkennen'],['splay','Spielen']]},
   {id:'tune',name:'Stimmen',modes:[['tune','Stimmen']]},
   {id:'stats',name:'Statistik',modes:[['stats','Statistik']]}
 ];
-var VIEWS={map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,
+var VIEWS={map:viewMap,find:viewFind,name:viewName,cmap:viewChordMap,cfind:viewChordFind,cname:viewChordName,cplay:viewChordPlay,
   smap:viewScaleMap,sfind:viewScaleFind,sname:viewScaleName,splay:viewScalePlay,tune:viewTune,stats:viewStats};
 function groupOf(mode){
   for(var i=0;i<GROUPS.length;i++)for(var j=0;j<GROUPS[i].modes.length;j++)if(GROUPS[i].modes[j][0]===mode)return GROUPS[i];
@@ -736,7 +793,9 @@ function handle(el){
   else if(act==='skip'){
     if(q&&!q.done){
       q.done=true;q.ok=false;q.picked=null;
-      if(state.mode==='splay')record(SCALES[q.t].id,false,'scales');else record(q.n,false);
+      if(state.mode==='splay')record(SCALES[q.t].id,false,'scales');
+      else if(state.mode==='cplay')record(I.chords[q.i].n,false,'chords');
+      else record(q.n,false);
       render();
     }
   }

@@ -37,7 +37,7 @@ def launch(p, wav):
 
 def go(pg, mode):
     """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
-    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords',
+    groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords',
               'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
     pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
     if pg.evaluate('state.mode') != mode:
@@ -55,6 +55,20 @@ def make_seq_wav(name, midis, dur=0.9):
             t = i / sr
             v = 0.30*math.sin(2*math.pi*f*t) + 0.15*math.sin(4*math.pi*f*t) + 0.08*math.sin(6*math.pi*f*t)
             frames.append(struct.pack('<h', int(v * 20000)))
+    w.writeframes(b''.join(frames)); w.close()
+    return path
+
+def make_chord_wav(name, midis, dur=4.0):
+    """Akkord: alle Töne gleichzeitig mit Obertönen (wie ein angeschlagener Akkord)."""
+    path = os.path.join(tmp, name)
+    sr = 48000
+    w = wave.open(path, 'wb'); w.setnchannels(1); w.setsampwidth(2); w.setframerate(sr)
+    fr = [440 * 2 ** ((m - 69) / 12) for m in midis]
+    frames = []
+    for i in range(int(sr * dur)):
+        t = i / sr
+        v = sum(0.12*math.sin(2*math.pi*f*t) + 0.06*math.sin(4*math.pi*f*t) + 0.03*math.sin(6*math.pi*f*t) for f in fr)
+        frames.append(struct.pack('<h', int(v * 20000)))
     w.writeframes(b''.join(frames)); w.close()
     return path
 
@@ -79,7 +93,7 @@ try:
         b = launch(p, a440)
         pg = new_page(b, errors, bad)
 
-        for v in ['map', 'find', 'name', 'cmap', 'cfind', 'cname', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
+        for v in ['map', 'find', 'name', 'cmap', 'cfind', 'cname', 'cplay', 'smap', 'sfind', 'sname', 'splay', 'tune', 'stats']:
             go(pg, v)
             check('Seite ' + v, pg.evaluate('state.mode') == v and pg.locator('#root .card, #root svg').count() > 0)
 
@@ -225,6 +239,39 @@ try:
         check('Statistik zeigt Akkorde und Tonleitern', 'Akkord' in pg.inner_text('#root') and 'Tonleiter' in pg.inner_text('#root'))
         check('Akkorde/Tonleitern: keine Konsolenfehler', not errors and not bad, str((errors + bad)[:3]))
         b.close()
+
+        # Akkorde erkennen: synthetische Griffe aller Akkorde beider Instrumente müssen richtig zugeordnet werden
+        b = launch(p, a440)
+        pg = new_page(b, [], [])
+        res = pg.evaluate("""(function(){var bad=[],n=0;
+          ['uke','gtr'].forEach(function(id){useInstrument(id);var I=INSTR[id];
+            I.chords.forEach(function(c){
+              var sr=48000,N=8192,buf=new Float32Array(N);
+              c.f.forEach(function(f,s){if(f<0)return;var fr=STR[s].f*Math.pow(2,f/12);
+                for(var i=0;i<N;i++){var v=0;for(var h=1;h<=5;h++)v+=Math.sin(2*Math.PI*fr*h*i/sr)/(h*h*0.6+0.4);buf[i]+=0.08*v;}});
+              for(var i=0;i<N;i++)buf[i]+=(Math.random()-0.5)*0.03;
+              var r=matchChord(chroma(buf,sr,id==='gtr'?40:55,88),I.chords);n++;
+              if(I.chords[r.i].n!==c.n||r.score<0.8||r.margin<0.02)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
+            });});return {n:n,bad:bad};})()""")
+        check('Akkorderkennung: alle ' + str(res['n']) + ' Griffe richtig', not res['bad'], str(res['bad']))
+        b.close()
+
+        # Akkord spielen mit dem simulierten Mikrofon: Ukulele C-Dur (G4 C4 E4 C5), danach falscher Akkord
+        for wavname, midis, target, inst, expect in [('c_uke.wav', [67, 60, 64, 72], 0, 'uke', True),
+                                                     ('am_uke.wav', [69, 69, 60, 64], 0, 'uke', False),
+                                                     ('am_gtr.wav', [45, 52, 57, 60, 64], 1, 'gtr', True)]:
+            b = launch(p, make_chord_wav(wavname, midis))
+            errors, bad = [], []
+            pg = new_page(b, errors, bad)
+            if inst == 'gtr':
+                pg.click('[data-act="inst"][data-v="gtr"]')
+            go(pg, 'cplay')
+            pg.evaluate(f"state.q={{i:{target},fing:[],done:false,ok:false,picked:null,id:71}};render()")
+            pg.click('[data-act="mic"]'); pg.wait_for_timeout(3000)
+            got = pg.evaluate("(stats.chords&&Object.keys(stats.chords).length?Object.keys(stats.chords).map(function(k){return stats.chords[k].c}).reduce(function(a,b){return a+b},0):0)")
+            check(f'Akkord spielen ({inst}, Ziel {"richtig" if expect else "falsch gespielt"})', (got >= 1) == expect, f'richtig gezählt: {got}')
+            check('Akkord spielen: keine Konsolenfehler', not errors and not bad, str((errors + bad)[:3]))
+            b.close()
 
         # Tonleiter spielen: C-Dur aufwärts C4..C5 mit dem simulierten Mikrofon
         scale = make_seq_wav('cmaj.wav', [60, 62, 64, 65, 67, 69, 71, 72])
