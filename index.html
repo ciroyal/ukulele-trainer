@@ -128,7 +128,8 @@ function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catc
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
 var state={inst:'uke',mode:'map',maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
-  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1, // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
+  gm:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
+   // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
   tune:{sel:'auto',hist:[],last:0,ok:0},   // Stimmgerät: gewählte Saite, letzte Messwerte, Zeitpunkt, Treffer in Folge
   mic:{on:false,err:'',stable:0,cool:0}};  // Mikrofon: stable = gleiche richtige Messungen in Folge, cool = Sperre bis Zeitpunkt
@@ -421,9 +422,29 @@ function newQ(){
   state.last={s:pick.s,f:pick.f,n:pick.n};
   state.q={s:pick.s,f:pick.f,n:pick.n,done:false,ok:false,picked:null,id:Date.now()};
 }
+// Akkorde, die zur gewählten Tonart passen: alle ihre Töne liegen in der Tonleiter. Ohne Tonart (oder bei weniger als 2 Treffern) alle.
+function chordsInKey(){
+  var cs=INSTR[state.inst].chords,all=cs.map(function(c,k){return k;});
+  if(state.kRoot<0)return {all:all,inKey:all,strict:false};
+  var set=scaleNotes(state.kRoot,SCALES[state.kType]);
+  var inKey=all.filter(function(k){
+    return cs[k].f.every(function(f,s){return f<0||set.indexOf(noteAt(s,f))>=0;});
+  });
+  return {all:all,inKey:inKey.length>=2?inKey:all,strict:inKey.length>=2,exact:inKey};
+}
+function keySelects(){
+  var o='<div class="sel"><span>Tonart:</span><label><select data-act="kroot"><option value="-1">Alle Akkorde</option>';
+  NOTES.forEach(function(n,i){o+='<option value="'+i+'"'+(state.kRoot===i?' selected':'')+'>'+n+'</option>';});
+  o+='</select></label><label><select data-act="ktype">';
+  [0,1].forEach(function(i){o+='<option value="'+i+'"'+(state.kType===i?' selected':'')+'>'+SCALES[i].name+'</option>';});
+  o+='</select></label></div>';
+  var g=chordsInKey();
+  if(state.kRoot>=0&&!g.strict)o+='<p class="hint" style="margin:-4px 0 10px">Zu '+scaleName(state.kRoot,SCALES[state.kType])+' gibt es hier weniger als 2 Griffe, daher sind alle Akkorde dabei.</p>';
+  return o;
+}
 function newChordQ(){
   var cs=INSTR[state.inst].chords;
-  var i=weighted(cs.map(function(c,k){return k;}),'chords',function(k){return cs[k].n;});
+  var i=weighted(chordsInKey().inKey,'chords',function(k){return cs[k].n;});
   state.q={i:i,fing:STR.map(function(){return 0;}),done:false,ok:false,picked:null,id:Date.now()};
 }
 // kind: 'find' (Töne auf einer Saite antippen), 'name' (Stufe benennen), 'play' (mit dem Mikrofon spielen)
@@ -621,9 +642,18 @@ function fingerText(c){
 }
 function viewChordMap(){
   var cs=INSTR[state.inst].chords,i=Math.min(state.cSel,cs.length-1),c=cs[i];
-  var o='<div class="chips">';
-  cs.forEach(function(ch,k){o+='<button class="btn'+(k===i?' on':'')+'" data-act="csel" data-v="'+k+'">'+ch.n+'</button>';});
-  o+='</div><div class="card"><p class="prompt">'+c.t+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+chordNotes(c)+'</p><button class="btn" data-act="strum">Anschlagen</button></div>';
+  var g=chordsInKey(),o=keySelects();
+  function chips(list){
+    var s='<div class="chips">';
+    list.forEach(function(k){s+='<button class="btn'+(k===i?' on':'')+'" data-act="csel" data-v="'+k+'">'+cs[k].n+'</button>';});
+    return s+'</div>';
+  }
+  if(g.strict){
+    var rest=g.all.filter(function(k){return g.inKey.indexOf(k)<0;});
+    o+='<p class="hint" style="margin:0 0 6px">In '+scaleName(state.kRoot,SCALES[state.kType])+'</p>'+chips(g.inKey);
+    if(rest.length)o+='<p class="hint" style="margin:0 0 6px">Weitere Akkorde</p>'+chips(rest);
+  }else o+=chips(g.all);
+  o+='<div class="card"><p class="prompt">'+c.t+'</p><p class="hint" style="margin:4px 0 8px">Töne: '+chordNotes(c)+'</p><button class="btn" data-act="strum">Anschlagen</button></div>';
   return o+fretboard(chordDots(c,true),null,4);
 }
 function viewChordFind(){
@@ -641,7 +671,7 @@ function viewChordFind(){
     btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="cchk">Prüfen</button></p>';
   }
   var hint=q.done?'':'<p class="hint" style="margin:6px 0 0">Tippe auf die Bünde. Saiten ohne Finger bleiben leer.'+(I.mutes?' Tippe oben auf eine Saite, um sie zu dämpfen (×).':'')+'</p>';
-  return '<div class="card"><p class="prompt">Greife '+c.t+'</p>'+hint+fb+btn+'</div>'+fretboard(dots,null,4);
+  return keySelects()+'<div class="card"><p class="prompt">Greife '+c.t+'</p>'+hint+fb+btn+'</div>'+fretboard(dots,null,4);
 }
 function viewChordName(){
   if(!state.q)newChordQ();
@@ -651,13 +681,15 @@ function viewChordName(){
     else{fb='<p class="fb bad">Das ist '+c.t+' ('+chordNotes(c)+').</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
   }
   var a='<div class="ans">';
+  var pool=chordsInKey().inKey;
   cs.forEach(function(ch,k){
+    if(pool.indexOf(k)<0)return;
     var cl='btn';
     if(q.done){if(k===q.i)cl+=' ok';else if(!q.ok&&k===q.picked)cl+=' bad';}
     a+='<button class="'+cl+'" data-act="cans" data-v="'+k+'">'+ch.n+'</button>';
   });
   a+='</div><p class="hint">Nur Buchstabe = Dur · m = Moll · 7 = Septakkord</p>';
-  return '<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,4);
+  return keySelects()+'<div class="card"><p class="prompt">Welcher Akkord ist das?</p>'+fb+btn+'</div>'+a+fretboard(chordDots(c,q.done),null,4);
 }
 
 function viewChordPlay(){
@@ -671,7 +703,7 @@ function viewChordPlay(){
   }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon, greife den Akkord und schlage alle Saiten an. Lass ihn klingen, bis er erkannt wird.</p>';
   var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
   if(mic.err)m+='<div class="card"><p class="fb bad" style="margin:0">'+mic.err+'</p></div>';
-  return m+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,4);
+  return m+keySelects()+score()+'<div class="card"><p class="prompt">Spiele '+c.t+'</p>'+fb+btn+'</div>'+fretboard(chordDots(c,true),null,4);
 }
 
 // ----- Tonleitern -----
@@ -899,7 +931,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -911,17 +943,20 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
+  else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
+  else if(a==='ktype'){state.kType=+el.value;state.q=null;savePick();render();}
   else if(a==='proot'){state.pRoot=+el.value;state.q=null;savePick();render();}
   else if(a==='ptype'){state.pType=+el.value;state.q=null;savePick();render();}
 });
 // Gewählte Übungs-Tonleiter merken (gilt für beide Instrumente)
 function savePick(){
-  try{localStorage.setItem('griffbrett-pick',state.pRoot+','+state.pType);}catch(e){/* Speicher gesperrt: Auswahl gilt nur bis zum Neuladen */}
+  try{localStorage.setItem('griffbrett-pick',[state.pRoot,state.pType,state.kRoot,state.kType].join(','));}catch(e){/* Speicher gesperrt: Auswahl gilt nur bis zum Neuladen */}
 }
 (function(){
   try{
     var pk=(localStorage.getItem('griffbrett-pick')||'').split(',').map(Number);
-    if(pk.length===2&&pk[0]>=-1&&pk[0]<12&&pk[1]>=-1&&pk[1]<SCALES.length&&pk[0]%1===0&&pk[1]%1===0){state.pRoot=pk[0];state.pType=pk[1];}
+    if(pk.length>=2&&pk[0]>=-1&&pk[0]<12&&pk[1]>=-1&&pk[1]<SCALES.length&&pk[0]%1===0&&pk[1]%1===0){state.pRoot=pk[0];state.pType=pk[1];}
+    if(pk.length===4&&pk[2]>=-1&&pk[2]<12&&pk[3]>=0&&pk[3]<=1&&pk[2]%1===0&&pk[3]%1===0){state.kRoot=pk[2];state.kType=pk[3];}
   }catch(e){/* Speicher gesperrt oder Wert kaputt: zufällig */}
   var saved=null;
   try{saved=localStorage.getItem('griffbrett-inst');}catch(e){/* Speicher gesperrt: mit Ukulele starten */}
