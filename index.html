@@ -118,7 +118,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 17:30';
+var VERSION='2026-11-10 · 18:30';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1046,7 +1046,7 @@ function viewPath(){
   var stages=[
     {group:'notes',title:'Töne',text:'Du lernst, wo welcher Ton auf dem Griffbrett liegt, und findest und erkennst Töne auf den Saiten.',
      done:sureCount('notes',[0,2,4,5,7,9,11]),total:7,unit:'Stammtöne sicher',
-     extra:'Zwischentöne: '+sureCount('notes',[1,3,6,8,10])+' von 5 sicher (die Übungen nehmen sie mit „Zwischentöne (#)“ dazu)'},
+     extra:'Zwischentöne: '+sureCount('notes',[1,3,6,8,10])+' von 5 sicher'},
     {group:'scales',title:'Tonleitern',text:'Du lernst Dur, Moll und die Pentatoniken kennen, findest ihre Töne auf dem Griffbrett und spielst sie auf deinem Instrument.',
      done:sureCount('scales',SCALES.map(function(s){return s.id;})),total:SCALES.length,unit:'Tonleiter-Arten sicher'},
     {group:'chords',title:'Akkorde',text:'Du baust Dreiklänge aus Tonleitern, lernst die Griffe für Dur, Moll, vermindert und Dominantseptakkorde und spielst sie.',
