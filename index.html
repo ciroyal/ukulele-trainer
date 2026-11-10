@@ -118,7 +118,7 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 16:30';
+var VERSION='2026-11-10 · 17:00';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -603,9 +603,9 @@ function dotSvg(s,f,cls,label){
 }
 // frets = Anzahl der gezeigten Bünde (Standard: der gewählte Bereich)
 // Bei Akkorden (frets gesetzt) bleibt das Griffbrett am unteren Rand sichtbar, auch wenn man oben in der Liste scrollt
-function fretboard(dots,band,frets){
+function fretboard(dots,band,frets,head){
   var svg=fretboardSvg(dots,band,frets);
-  return frets?'<div class="stickyfb">'+svg+'</div>':svg;
+  return frets?'<div class="stickyfb">'+(head||'')+svg+'</div>':svg;
 }
 function fretboardSvg(dots,band,frets){
   var N=frets||state.maxFret,H=TOP+FH*N+14,o='',i;
@@ -788,8 +788,8 @@ function viewChordMap(){
       o+='<p class="hint" style="margin:0 0 6px">'+qt[1]+'</p>'+chips(g.all.filter(function(k){return cs[k].q===qt[0];}));
     });
   }
-  o+='<div class="card">'+titleRow(c.t,'strum','Akkord anschlagen')+'<p class="hint" style="margin:4px 0 0">Töne: '+chordNotes(c)+'</p></div>';
-  return o+fretboard(chordDots(c,true),null,chordFrets(c));
+  // Name und Play-Button wandern mit dem Griffbrett (die Töne sieht man dort)
+  return o+fretboard(chordDots(c,true),null,chordFrets(c),'<div class="card" style="margin:0 0 6px">'+titleRow(c.t,'strum','Akkord anschlagen')+'</div>');
 }
 function viewChordFind(){
   if(!state.q)newChordQ();
@@ -852,9 +852,9 @@ function viewChordDeg(){
   });
   o+='</div>';
   var k=t.q==='aug'?-1:chordIndexOf(t.r,t.q);
-  o+='<div class="card">'+(k>=0?titleRow(t.roman+': '+t.name,'strum','Akkord anschlagen'):'<p class="prompt">'+t.roman+': '+t.name+'</p>')+'<p class="hint" style="margin:4px 0 0">Töne: '+t.notes.map(noteName).join(' ')+' (Stufen '+(d+1)+', '+((d+2)%7+1)+', '+((d+4)%7+1)+')</p>';
-  if(k>=0){state.cSel=k;o+='</div>'+fretboard(chordDots(INSTR[state.inst].chords[k],true),null,chordFrets(INSTR[state.inst].chords[k]));}
-  else o+='<p class="hint" style="margin:0">Dieser Akkord ist übermäßig. Dafür gibt es hier keinen Griff.</p></div>';
+  var stufen='<p class="hint" style="margin:4px 0 0">Stufen '+(d+1)+', '+((d+2)%7+1)+', '+((d+4)%7+1)+'</p>';
+  if(k>=0){state.cSel=k;o+=fretboard(chordDots(INSTR[state.inst].chords[k],true),null,chordFrets(INSTR[state.inst].chords[k]),'<div class="card" style="margin:0 0 6px">'+titleRow(t.roman+': '+t.name,'strum','Akkord anschlagen')+stufen+'</div>');}
+  else o+='<div class="card"><p class="prompt">'+t.roman+': '+t.name+'</p>'+stufen+'<p class="hint" style="margin:0">Dieser Akkord ist übermäßig. Dafür gibt es hier keinen Griff.</p></div>';
   return o;
 }
 function viewChordBuild(){
