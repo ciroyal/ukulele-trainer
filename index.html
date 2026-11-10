@@ -117,9 +117,15 @@ svg.fb-svg{width:100%;height:auto;display:block;touch-action:manipulation}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 15:30';
-var NOTES=['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
-var FLATS=['','Des','','Es','','','Ges','','As','','B',''];
+var VERSION='2026-11-10 · 16:00';
+// Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
+var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
+var INTL=NAMING==='int';
+var NOTES=INTL?['C','C♯','D','D♯','E','F','F♯','G','G♯','A','A♯','B']:['C','Cis','D','Dis','E','F','Fis','G','Gis','A','Ais','H'];
+var FLATS=INTL?['','D♭','','E♭','','','G♭','','A♭','','B♭','']:['','Des','','Es','','','Ges','','As','','B',''];
+var HN=NOTES[11],ES=FLATS[3],GES=FLATS[6];
+// Text je nach Namenswahl: deutsch oder international
+function T(de,int){return INTL?int:de;}
 var NAMES=NOTES.map(function(n,i){return FLATS[i]?n+'/'+FLATS[i]:n;});
 // Akkordgriffe für alle 12 Grundtöne: Dur, Moll, vermindert und Dominantseptakkord. Je Instrument Bund pro Saite (0 = leer, -1 = gedämpft),
 // Reihenfolge der Grundtöne wie NOTES (C, C#, D, D#, E, F, F#, G, G#, A, A#, H). tests/smoke.py prüft, dass jeder Griff genau die richtigen Töne enthält.
@@ -153,10 +159,10 @@ var INSTR={
     // Griffe: Bund je Saite von links nach rechts, 0 = leer, -1 = gedämpft. Töne dazu in tests/smoke.py geprüft.
     chords:makeChords('uke'),
     strings:[{n:'G',label:'G-Saite',m:67,f:392.0},{n:'C',label:'C-Saite',m:60,f:261.63},{n:'E',label:'E-Saite',m:64,f:329.63},{n:'A',label:'A-Saite',m:69,f:440.0}]},
-  gtr:{name:'Gitarre',tuning:'E–A–D–G–H–e',lowHz:70,fft:4096,marks:{3:1,5:1,7:1,9:1,12:2},dbl:[[1,2],[3,4]],gap:38,mutes:true,playBase:52,
+  gtr:{name:'Gitarre',tuning:'E–A–D–G–'+HN+'–e',lowHz:70,fft:4096,marks:{3:1,5:1,7:1,9:1,12:2},dbl:[[1,2],[3,4]],gap:38,mutes:true,playBase:52,
     chords:makeChords('gtr'),
     strings:[{n:'E',label:'E-Saite (tief)',m:40,f:82.41},{n:'A',label:'A-Saite',m:45,f:110.0},{n:'D',label:'D-Saite',m:50,f:146.83},
-      {n:'G',label:'G-Saite',m:55,f:196.0},{n:'H',label:'H-Saite',m:59,f:246.94},{n:'e',label:'e-Saite (hoch)',m:64,f:329.63}]}
+      {n:'G',label:'G-Saite',m:55,f:196.0},{n:HN,label:HN+'-Saite',m:59,f:246.94},{n:'e',label:'e-Saite (hoch)',m:64,f:329.63}]}
 };
 // Tonleitern: Abstände in Halbtönen vom Grundton. label = Name in Auswahllisten (Moll ist hier natürlich Moll).
 var SCALES=[{id:'maj',name:'Dur',label:'Dur',iv:[0,2,4,5,7,9,11]},{id:'min',name:'Moll',label:'Moll (natürlich)',iv:[0,2,3,5,7,8,10]},
@@ -636,7 +642,7 @@ function viewMap(){
     if(!state.sharps&&!isNat(n))continue;
     dots.push({s:s,f:f,c:f===0?'open':(isNat(n)?'nat':'sharp'),l:NAMES[n]});
   }
-  return controls()+'<div class="card"><p class="prompt">Griffbrett-Karte</p><p class="hint" style="margin:4px 0 0">Tippe auf eine Stelle, um den Ton zu hören. Zwischen E–F und H–C liegt nur ein Bund. Zwischentöne haben zwei Namen (Cis/Des), H ist das internationale B, B ist das internationale Bb.</p></div>'+fretboard(dots);
+  return controls()+'<div class="card"><p class="prompt">Griffbrett-Karte</p><p class="hint" style="margin:4px 0 0">Tippe auf eine Stelle, um den Ton zu hören. Zwischen E–F und '+HN+'–C liegt nur ein Bund. '+T('Zwischentöne haben zwei Namen (Cis/Des), H ist das internationale B, B ist das internationale Bb.','Zwischentöne haben zwei Namen (C♯/D♭).')+'</p></div>'+fretboard(dots);
 }
 
 function score(){
@@ -968,12 +974,12 @@ function noteList(notes){return notes.map(noteName).join(' ');}
 function viewTheoryNotes(){
   var I=INSTR[state.inst],open=I.strings.map(function(s){return s.n;}).join(' ');
   return theoryCard('Stammtöne und Zwischentöne',[
-    'Es gibt 7 Stammtöne: C D E F G A H. Auf dem Klavier sind es die weißen Tasten.',
-    'Dazu kommen 5 Zwischentöne (schwarze Tasten): Cis/Des, Dis/Es, Fis/Ges, Gis/As und Ais/B. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit -is ist er erhöht, mit Des, Es, Ges, As, B erniedrigt.',
-    'H ist das internationale B, und B ist das internationale Bb.'],pianoSvg([0,2,4,5,7,9,11]))+
+    'Es gibt 7 Stammtöne: C D E F G A '+HN+'. Auf dem Klavier sind es die weißen Tasten.',
+    'Dazu kommen 5 Zwischentöne (schwarze Tasten): '+T('Cis/Des, Dis/Es, Fis/Ges, Gis/As und Ais/B. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit -is ist er erhöht, mit Des, Es, Ges, As, B erniedrigt.','C♯/D♭, D♯/E♭, F♯/G♭, G♯/A♭ und A♯/B♭. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit ♯ ist er erhöht, mit ♭ erniedrigt.'),
+    T('H ist das internationale B, und B ist das internationale Bb.','Im Deutschen heißt das B hier H, und das B♭ heißt B.')],pianoSvg([0,2,4,5,7,9,11]))+
   theoryCard('Halbton und Ganzton',[
     'Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton.',
-    'Zwischen E und F sowie zwischen H und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'],chromSvg(false))+
+    'Zwischen E und F sowie zwischen '+HN+' und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'],chromSvg(false))+
   theoryCard('Oktave',[
     'Nach 12 Halbtönen wiederholen sich die Tonnamen, nur höher. Der Abstand heißt Oktave. Auf dem 12. Bund klingt eine Saite eine Oktave höher als leer.'],chromSvg(true))+
   theoryCard('Die Saiten ('+I.name+')',[
@@ -1000,20 +1006,20 @@ function viewTheoryChords(){
   var cd=[0,1,2,3,4,5,6].map(function(d){return triadAt(0,0,d);}),am=[0,1,2,3,4,5,6].map(function(d){return triadAt(9,1,d);});
   function row(t){return t.map(function(x){return x.roman+' '+x.name;}).join(', ');}
   return theoryCard('Dreiklang',[
-    'Ein Dreiklang entsteht, wenn du auf einem Ton jeden zweiten Ton der Tonleiter stapelst: Grundton (1.), Terz (3.) und Quinte (5.). In C-Dur ergibt das ab dem C: C E G.'],stackSvg(['C','D','E','F','G','A','H']))+
+    'Ein Dreiklang entsteht, wenn du auf einem Ton jeden zweiten Ton der Tonleiter stapelst: Grundton (1.), Terz (3.) und Quinte (5.). In C-Dur ergibt das ab dem C: C E G.'],stackSvg(['C','D','E','F','G','A',HN]))+
   theoryCard('Dur, Moll, vermindert',[
     'Dur: große Terz (4 Halbtöne) und Quinte (7). Beispiel C E G.',
-    'Moll: kleine Terz (3 Halbtöne) und Quinte (7). Beispiel C Es G.',
-    'Vermindert: kleine Terz (3) und verminderte Quinte (6). Beispiel C Es Ges.'],triadBarSvg([['Dur',4,3],['Moll',3,4],['vermindert',3,3]]))+
+    'Moll: kleine Terz (3 Halbtöne) und Quinte (7). Beispiel C '+ES+' G.',
+    'Vermindert: kleine Terz (3) und verminderte Quinte (6). Beispiel C '+ES+' '+GES+'.'],triadBarSvg([['Dur',4,3],['Moll',3,4],['vermindert',3,3]]))+
   theoryCard('Stufenakkorde',[
     'Baust du auf jeder Stufe einer Tonleiter einen Dreiklang, entstehen die Stufenakkorde. Sie werden mit römischen Ziffern benannt: groß = Dur, klein = Moll, ° = vermindert.',
     'Dur: I, ii, iii, IV, V, vi, vii°. In C-Dur: '+row(cd)+'.',
     'Moll (natürlich): i, ii°, III, iv, v, VI, VII. In A-Moll: '+row(am)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur</p>'+chipsHtml(cd.slice(0,7))+'<p class="hint" style="margin:10px 0 4px">A-Moll</p>'+chipsHtml(am.slice(0,7)))+
   theoryCard('Dominantseptakkord',[
-    'Ein Dur-Dreiklang mit einer kleinen Septime obendrauf. Er entsteht, wenn du auf der V. Stufe einen vierten Ton stapelst: G7 in C-Dur ist G H D F. Er zieht gern zur I. Stufe hin.',
-    'In Moll wird als V. Stufe oft der Dur-Akkord genommen, in A-Moll also E oder E7.'],stackSvg(['G','A','H','C','D','E','F'],[0,2,4,6]).replace(/<path[^>]*\/>/g,'').replace(/>Terz</g,'><'))+
+    'Ein Dur-Dreiklang mit einer kleinen Septime obendrauf. Er entsteht, wenn du auf der V. Stufe einen vierten Ton stapelst: G7 in C-Dur ist G '+HN+' D F. Er zieht gern zur I. Stufe hin.',
+    'In Moll wird als V. Stufe oft der Dur-Akkord genommen, in A-Moll also E oder E7.'],stackSvg(['G','A',HN,'C','D','E','F'],[0,2,4,6]).replace(/<path[^>]*\/>/g,'').replace(/>Terz</g,'><'))+
   theoryCard('Akkordnamen in der App',[
-    'Nur der Ton = Dur (C), m = Moll (Cm), ° = vermindert (C°), 7 = Dominantseptakkord (C7). Zwischentöne stehen kurz mit -is, zum Beispiel Cis oder Cism. In den Titeln stehen beide Namen.']);
+    'Nur der Ton = Dur (C), m = Moll (Cm), ° = vermindert (C°), 7 = Dominantseptakkord (C7). '+T('Zwischentöne stehen kurz mit -is, zum Beispiel Cis oder Cism.','Zwischentöne stehen kurz mit ♯, zum Beispiel C♯ oder C♯m.')+' In den Titeln stehen beide Namen.']);
 }
 
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
@@ -1106,7 +1112,7 @@ function viewScaleName(){
     if(q.done){if(n===right)cl+=' ok';else if(!q.ok&&n===q.picked)cl+=' bad';}
     a+='<button class="'+cl+'" data-act="sans" data-n="'+n+'">'+NAMES[n]+'</button>';
   }
-  a+='</div><p class="hint">Zwischentöne haben zwei Namen, zum Beispiel Cis/Des. H ist das internationale B, B ist das internationale Bb.</p>';
+  a+='</div><p class="hint">'+T('Zwischentöne haben zwei Namen, zum Beispiel Cis/Des. H ist das internationale B, B ist das internationale Bb.','Zwischentöne haben zwei Namen, zum Beispiel C♯/D♭.')+'</p>';
   return controls()+scalePick()+'<div class="card"><p class="prompt">Welcher Ton ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+'?</p>'+fb+btn+'</div>'+a;
 }
 function viewScalePlay(){
@@ -1152,7 +1158,7 @@ function render(){
   if(state.settings){
     o+='<div class="card"><p class="prompt" style="font-size:17px">Einstellungen</p><p class="hint" style="margin:4px 0 8px">Instrument</p><div class="inst" style="margin:0">';
     Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-    o+='</div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Stand der App: '+VERSION+'</p></div>';
+    o+='</div><p class="hint" style="margin:12px 0 8px">Tonnamen</p><div class="inst" style="margin:0"><button class="btn'+(INTL?'':' on')+'" data-act="naming" data-v="de">Deutsch (H, Cis)</button><button class="btn'+(INTL?' on':'')+'" data-act="naming" data-v="int">International (B, C♯)</button></div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Stand der App: '+VERSION+'</p></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
   o+='<p class="sub">Stimmung '+INSTR[state.inst].tuning+'</p><div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';
@@ -1194,6 +1200,7 @@ function handle(el){
   }
   else if(act==='next'){next();}
   else if(act==='settings'){state.settings=!state.settings;render();}
+  else if(act==='naming'){try{localStorage.setItem('griffbrett-naming',v);}catch(e){/* Speicher gesperrt */}location.reload();}
   else if(act==='inst'){useInstrument(v);state.settings=false;render();}
   else if(act==='tstr'){
     state.tune.sel=v;
