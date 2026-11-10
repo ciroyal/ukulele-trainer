@@ -251,7 +251,7 @@ try:
                 for(var i=0;i<N;i++){var v=0;for(var h=1;h<=5;h++)v+=Math.sin(2*Math.PI*fr*h*i/sr)/(h*h*0.6+0.4);buf[i]+=0.08*v;}});
               for(var i=0;i<N;i++)buf[i]+=(Math.random()-0.5)*0.03;
               var r=matchChord(chroma(buf,sr,id==='gtr'?40:55,88),I.chords);n++;
-              if(I.chords[r.i].n!==c.n||r.score<0.8||r.margin<0.02)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
+              if(I.chords[r.i].n!==c.n||r.score<0.03||r.margin<0.05)bad.push(id+' '+c.n+' -> '+I.chords[r.i].n+' '+r.score.toFixed(2)+'/'+r.margin.toFixed(2));
             });});return {n:n,bad:bad};})()""")
         check('Akkorderkennung: alle ' + str(res['n']) + ' Griffe richtig', not res['bad'], str(res['bad']))
         b.close()
@@ -259,7 +259,10 @@ try:
         # Akkord spielen mit dem simulierten Mikrofon: Ukulele C-Dur (G4 C4 E4 C5), danach falscher Akkord
         for wavname, midis, target, inst, expect in [('c_uke.wav', [67, 60, 64, 72], 0, 'uke', True),
                                                      ('am_uke.wav', [69, 69, 60, 64], 0, 'uke', False),
-                                                     ('am_gtr.wav', [45, 52, 57, 60, 64], 1, 'gtr', True)]:
+                                                     ('am_gtr.wav', [45, 52, 57, 60, 64], 1, 'gtr', True),
+                                                     ('c7_uke.wav', [67, 60, 64, 70], 9, 'uke', True),    # C7 gespielt, Ziel C7
+                                                     ('c7b_uke.wav', [67, 60, 64, 70], 0, 'uke', False),  # C7 gespielt, Ziel C
+                                                     ('cb_uke.wav', [67, 60, 64, 72], 9, 'uke', False)]:  # C gespielt, Ziel C7
             b = launch(p, make_chord_wav(wavname, midis))
             errors, bad = [], []
             pg = new_page(b, errors, bad)

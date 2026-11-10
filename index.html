@@ -221,14 +221,20 @@ function chroma(buf,sr,lo,hi){
   }
   return c;
 }
-// Vergleicht das Chroma mit den Tönen jedes Akkords (Kosinus-Ähnlichkeit). Gibt {i:bester Akkord, score, margin} zurück.
+// Bewertet jeden Akkord: Wie schwach ist sein leisester Akkordton, und wie laut ist der lauteste fremde Ton (beides relativ zum lautesten Ton)?
+// Wert = leisester Akkordton minus lautester Fremdton. So wird C7 nicht für C gehalten (der Ton A# fehlt bei C, ist bei C7 aber da)
+// und umgekehrt. Gibt {i:bester Akkord, score, margin zum zweitbesten} zurück.
 function matchChord(c,chords){
-  var best=-1,bs=0,second=0;
+  c=c.map(Math.sqrt); // Wurzel: ein verdoppelter Ton (z. B. E im E-Dur-Griff) soll die übrigen nicht überdecken
+  var mx=Math.max.apply(null,c)||1,best=-1,bs=-9,second=-9;
   chords.forEach(function(ch,k){
     var set=[];ch.f.forEach(function(f,s){if(f>=0){var n=noteAt(s,f);if(set.indexOf(n)<0)set.push(n);}});
-    var dot=0,nc=0;
-    for(var p=0;p<12;p++){nc+=c[p]*c[p];if(set.indexOf(p)>=0)dot+=c[p];}
-    var sc=dot/(Math.sqrt(nc)*Math.sqrt(set.length)||1);
+    var low=1,extra=0;
+    for(var p=0;p<12;p++){
+      var v=c[p]/mx;
+      if(set.indexOf(p)>=0){if(v<low)low=v;}else if(v>extra)extra=v;
+    }
+    var sc=low-extra;
     if(sc>bs){second=bs;bs=sc;best=k;}else if(sc>second)second=sc;
   });
   return {i:best,score:bs,margin:bs-second};
@@ -298,7 +304,7 @@ function micTick(){
 function chordTick(){
   var m=state.mic,q=state.q,I=INSTR[state.inst],liveEl=document.getElementById('live');
   var c=chroma(dev.buf,dev.ctx.sampleRate,state.inst==='gtr'?40:55,88);
-  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.8&&r.margin>=0.02;
+  var r=c?matchChord(c,I.chords):null,good=r&&r.score>=0.03&&r.margin>=0.05;
   if(liveEl)liveEl.textContent=good?I.chords[r.i].n:'–';
   if(!q||q.done||Date.now()<m.cool)return;
   if(good&&r.i===q.i)m.stable++;else m.stable=0;
