@@ -138,7 +138,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.49';
+var VERSION='1.50';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1010,6 +1010,8 @@ function viewTheoryNotes(){
   return theoryCard('Stammtöne und Zwischentöne',[
     'Es gibt 7 Stammtöne: C D E F G A '+HN+'. Auf dem Klavier sind es die weißen Tasten.',
     'Dazu kommen 5 Zwischentöne (schwarze Tasten): '+T('Cis/Des, Dis/Es, Fis/Ges, Gis/As und Ais/B. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit -is ist er erhöht, mit Des, Es, Ges, As, B erniedrigt.','C♯/D♭, D♯/E♭, F♯/G♭, G♯/A♭ und A♯/B♭. Jeder hat zwei Namen, gemeint ist derselbe Ton. Mit ♯ ist er erhöht, mit ♭ erniedrigt.'),
+    T('In Noten und Akkordsymbolen steht für -is das Kreuz ♯ (wie eine Raute #): Cis = C♯, Dis = D♯, Fis = F♯, Gis = G♯, Ais = A♯. Für die erniedrigten Töne steht das ♭ (wie ein kleines b): Des = D♭, Es = E♭, Ges = G♭, As = A♭, B = B♭.',
+      'Im Deutschen heißen die Töne mit ♯ Cis, Dis, Fis, Gis und Ais, die Töne mit ♭ heißen Des, Es, Ges, As und B.'),
     T('H ist das internationale B, und B ist das internationale Bb.','Im Deutschen heißt das B hier H, und das B♭ heißt B.')],pianoSvg([0,2,4,5,7,9,11]))+
   theoryCard('Halbton und Ganzton',[
     'Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton.',
