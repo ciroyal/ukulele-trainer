@@ -125,6 +125,10 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 .stage.next{border-color:transparent;border-left-color:var(--accent)}
 .bar{height:12px;border-radius:6px}.bar i{border-radius:6px;background:linear-gradient(90deg,#27b58a,#0f8a6a)}
 .btn.pri{border-radius:12px}
+/* Laufende Runde: Einstellungen ausblenden, Rundenkarte bleibt oben sichtbar */
+.inround .ctl,.inround .sel,.inround .score,.inround .vhint{display:none}
+.rrun{position:sticky;top:6px;z-index:7;padding:8px 14px;margin-bottom:8px}
+.rrun .bar{height:8px}
 </style>
 </head>
 <body>
@@ -134,7 +138,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.48';
+var VERSION='1.49';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1209,7 +1213,7 @@ function voiceBar(){
   var o='<div class="ctl"><button class="btn'+(voice.on?' pri':'')+'" data-act="voice">Antwort sprechen: '+(voice.on?'an':'aus')+'</button></div>';
   if(voice.err)o+='<p class="hint" style="margin:-4px 0 12px;color:var(--badText)">'+voice.err+'</p>';
   else if(voice.on&&!voice.model)o+='<div class="card" style="margin-top:-4px"><div class="rtop"><b>Lade Sprachmodell …</b><span id="vpct">'+(voice.pct?voice.pct+' %':'')+'</span></div><div class="bar" style="margin:8px 0 6px"><i id="vbar" style="width:'+(voice.pct||0)+'%"></i></div><span class="hint">Einmaliger Download, ca. 46 MB. Danach startet es in wenigen Sekunden.</span></div>';
-  else if(voice.on)o+='<p class="hint" style="margin:-4px 0 12px">'+(voice.stream?'<b>Hört zu …</b> ':'')+tip+' „Weiter“ geht zur nächsten Aufgabe.'+(voice.heard?'<br>Gehört: <b>'+voice.heard.replace(/[<&]/g,'')+'</b>':'')+'</p>';
+  else if(voice.on)o+='<p class="hint vhint" style="margin:-4px 0 12px">'+(voice.stream?'<b>Hört zu …</b> ':'')+tip+' „Weiter“ geht zur nächsten Aufgabe.'+(voice.heard?'<br>Gehört: <b>'+voice.heard.replace(/[<&]/g,'')+'</b>':'')+'</p>';
   return o;
 }
 
@@ -1231,6 +1235,8 @@ function startRound(){
   cancelRound();state.roundResult=null;
   state.round={mode:state.mode,start:Date.now(),ok:0,total:0};
   roundTimer=setInterval(roundTick,250);next();
+  // Aufgabe nach oben holen: die laufende Runde blendet Einstellungen aus, die Rundenkarte bleibt oben stehen
+  var rc=document.getElementById('rcard');if(rc&&rc.scrollIntoView)rc.scrollIntoView({block:'start'});
 }
 function finishRound(){
   var r=state.round;if(!r)return;
@@ -1255,7 +1261,7 @@ function roundBar(){
   var m=state.mode,b=bestRound(m),th=RATING[m],r=state.round,res=state.roundResult;
   if(r&&r.mode===m){
     var left=Math.max(0,ROUND_SEC-(Date.now()-r.start)/1000);
-    return '<div class="card"><div class="rtop"><b>Runde läuft</b><span id="rleft">'+Math.ceil(left)+' s</span></div><div class="bar"><i id="rbar" style="width:'+(100*left/ROUND_SEC)+'%"></i></div>'+
+    return '<div class="card rrun" id="rcard"><div class="rtop"><b>Runde läuft</b><span id="rleft">'+Math.ceil(left)+' s</span></div><div class="bar"><i id="rbar" style="width:'+(100*left/ROUND_SEC)+'%"></i></div>'+
       '<div class="rtop" style="margin-top:8px"><span class="hint">Richtig <b>'+r.ok+'</b> · Falsch <b>'+(r.total-r.ok)+'</b></span><button class="btn" data-act="rstop">Abbrechen</button></div></div>';
   }
   var o='<div class="card"><div class="rtop"><div><b>Runde · '+ROUND_SEC+' s</b><div class="hint" style="margin:2px 0 0">'+(b?'Beste: '+starText(b.stars)+' ('+b.ok+' richtig)':'Noch keine Runde')+'</div></div><button class="btn pri" data-act="rstart">Starten</button></div>';
@@ -1418,6 +1424,7 @@ function render(){
     }
   }
   o+=VIEWS[state.mode]();
+  document.getElementById('root').className=state.round?'inround':'';
   document.getElementById('root').innerHTML=o;
   if(voice.stream)voiceMakeRec(); // Vokabular an die sichtbaren Antworten anpassen
 }
