@@ -133,8 +133,8 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // Tonnamen nach deutschem System: Stammtöne C D E F G A H, Zwischentöne mit -is (erhöht) oder erniedrigt (Des, Es, Ges, As, B).
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
-// Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 16:45';
+// Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
+var VERSION='1.46';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1377,7 +1377,7 @@ function render(){
   if(state.settings){
     o+='<div class="card"><p class="prompt" style="font-size:17px">Einstellungen</p><p class="hint" style="margin:4px 0 8px">Instrument</p><div class="inst" style="margin:0">';
     Object.keys(INSTR).forEach(function(k){o+='<button class="btn'+(state.inst===k?' on':'')+'" data-act="inst" data-v="'+k+'">'+INSTR[k].name+'</button>';});
-    o+='</div><p class="hint" style="margin:12px 0 8px">Tonnamen</p><div class="inst" style="margin:0"><button class="btn'+(INTL?'':' on')+'" data-act="naming" data-v="de">Deutsch (H, Cis)</button><button class="btn'+(INTL?' on':'')+'" data-act="naming" data-v="int">International (B, C♯)</button></div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Stand der App: '+VERSION+'</p></div>';
+    o+='</div><p class="hint" style="margin:12px 0 8px">Tonnamen</p><div class="inst" style="margin:0"><button class="btn'+(INTL?'':' on')+'" data-act="naming" data-v="de">Deutsch (H, Cis)</button><button class="btn'+(INTL?' on':'')+'" data-act="naming" data-v="int">International (B, C♯)</button></div><p class="hint" style="margin:12px 0 4px">Ton</p><label class="ctl" style="margin:0;color:var(--text)"><input type="checkbox" data-act="sound"'+(state.sound?' checked':'')+'> Töne beim Antippen und Anhören abspielen</label><p class="hint" style="margin:12px 0 0">Version '+VERSION+'</p></div>';
   }
   var shown=GROUPS.filter(function(x){return !x.hidden;});
   o+='<div class="tabs top" style="grid-template-columns:repeat('+shown.length+',1fr)">';

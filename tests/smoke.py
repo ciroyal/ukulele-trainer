@@ -205,7 +205,7 @@ try:
         pg.click('[data-act="inst"][data-v="gtr"]')
         check('Auswahl schließt die Einstellungen', pg.locator('[data-act="inst"]').count() == 0 and pg.evaluate("state.inst")=='gtr' and pg.inner_text('h1') == 'Gitarre' and 'Griffbrett-Trainer' not in pg.inner_text('#root'))
         pg.click('[data-act="settings"]')
-        check('Einstellungen zeigen den Stand der App', 'Stand der App: 20' in pg.inner_text('#root'))
+        check('Einstellungen zeigen die Version', 'Version 1.' in pg.inner_text('#root') and 'Stand der App' not in pg.inner_text('#root'))
         check('Ton-Schalter in den Einstellungen', pg.locator('input[data-act="sound"]').count() == 1 and pg.evaluate("state.sound") is True)
         pg.uncheck('input[data-act="sound"]')
         check('Ton lässt sich ausschalten und bleibt nach Neuladen aus', pg.evaluate("state.sound") is False and (pg.reload() or True) and pg.evaluate("state.sound") is False)
