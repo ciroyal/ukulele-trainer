@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 16:00';
+var VERSION='2026-11-11 · 16:30';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1122,9 +1122,12 @@ function voiceFail(msg){voice.on=false;voice.loading=false;voice.starting=false;
 function voiceLoad(){
   if(voice.model||voice.loading)return;
   voice.loading=true;
+  if(window.Vosk){startModel();return;}
   var s=document.createElement('script');s.src='vosk/vosk.js';
   s.onerror=function(){voiceFail('Die Spracherkennung konnte nicht geladen werden.');};
-  s.onload=function(){
+  s.onload=startModel;
+  document.head.appendChild(s);
+  function startModel(){
     var m=new Vosk.Model('vosk/model-de.tar.gz');
     // Fortschritt des Downloads (die Meldung kommt aus dem angepassten Worker in vosk/vosk.js)
     m.on('progress',function(p){
@@ -1134,12 +1137,21 @@ function voiceLoad(){
       if(x)x.textContent=voice.pct+' %';
     });
     m.on('load',function(r){
-      if(r.result){voice.model=m;voice.loading=false;render();}
-      else voiceFail('Das Sprachmodell konnte nicht geladen werden.');
+      if(r.result){voice.model=m;voice.loading=false;voice.retried=false;render();}
+      else modelFail('');
     });
-    m.on('error',function(){voiceFail('Das Sprachmodell konnte nicht geladen werden.');});
-  };
-  document.head.appendChild(s);
+    m.on('error',function(e){modelFail(e&&e.error?String(e.error):'');});
+    // Laden fehlgeschlagen: beim ersten Mal den gespeicherten (vielleicht unvollständigen) Stand löschen und neu laden
+    function modelFail(detail){
+      if(voice.model===m||voice.loading===false)return; // nur Fehler während des Ladens
+      try{m.worker.terminate();}catch(x){/* lief nicht mehr */} // Worker direkt beenden, damit er den Speicher freigibt
+      if(voice.retried){voiceFail('Das Sprachmodell konnte nicht geladen werden.'+(detail?' ('+detail+')':'')+' Tippe noch einmal auf „Antwort sprechen“, um es erneut zu versuchen.');return;}
+      voice.retried=true;voice.pct=0;
+      var again=function(){voice.loading=false;if(voice.on)voiceLoad();render();};
+      try{var del=indexedDB.deleteDatabase('/vosk');del.onsuccess=del.onerror=del.onblocked=function(){if(again){var a=again;again=null;setTimeout(a,300);}};}
+      catch(x){again();}
+    }
+  }
 }
 function voiceStart(){
   if(!voice.model){voiceLoad();return;}
@@ -1406,7 +1418,7 @@ function handle(el){
     state.q=null;state.resetArmed=false;render();
   }
   else if(act==='next'){next();}
-  else if(act==='voice'){voice.on=!voice.on;voice.err='';voice.heard='';render();}
+  else if(act==='voice'){voice.on=!voice.on;voice.err='';voice.heard='';voice.retried=false;render();}
   else if(act==='rstart'){startRound();}
   else if(act==='rstop'){cancelRound();state.roundResult=null;render();}
   else if(act==='settings'){state.settings=!state.settings;render();}
