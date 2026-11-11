@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-10 · 20:30';
+var VERSION='2026-11-11 · 12:30';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1052,6 +1052,89 @@ function viewTheoryChords(){
 }
 
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
+// ----- Antwort sprechen (Spracherkennung des Browsers) -----
+// In den Übungen mit Antwortknöpfen kann man die Antwort sagen statt tippen. Der erkannte Text wird auf den passenden Knopf abgebildet.
+var VOICE_MODES=['name','sname','cname','cstep','cbuild'];
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+var voice={on:false,rec:null,heard:'',err:''};
+// So schreibt die Spracherkennung die gesprochenen Tonnamen häufig (deutsche Buchstabennamen)
+var VNOTE={c:0,ce:0,ceh:0,zeh:0,tse:0,tseh:0,z:0,cis:1,zis:1,ziss:1,des:1,dess:1,d:2,de:2,deh:2,dis:3,diss:3,es:3,ess:3,e:4,eh:4,ee:4,f:5,ef:5,eff:5,
+  fis:6,fiss:6,ges:6,gess:6,g:7,ge:7,geh:7,gis:8,giss:8,as:8,ass:8,a:9,ah:9,ais:10,aiss:10,h:11,ha:11,hah:11};
+var VNUM={eins:1,erste:1,ersten:1,'1':1,zwei:2,zweite:2,zweiten:2,'2':2,drei:3,dritte:3,dritten:3,'3':3,vier:4,vierte:4,vierten:4,'4':4,
+  'fünf':5,'fünfte':5,'fünften':5,'5':5,sechs:6,sechste:6,sechsten:6,'6':6,sieben:7,siebte:7,siebten:7,'7':7};
+// Liest aus dem erkannten Text: Töne (pcs), Akkord-Art (qual), Zahl (num) und Befehle (weiter, prüfen)
+function voiceParse(text){
+  var s=' '+text.toLowerCase().replace(/♯|#/g,' sharp ').replace(/♭/g,' flat ').replace(/[-.,!?]/g,' ')+' ';
+  var r={pcs:[],qual:null,num:null,next:/ (weiter|nächste|nächster) /.test(s),check:/ (prüfen|fertig) /.test(s)};
+  if(/ vermindert/.test(s))r.qual='dim';
+  s.split(/\s+/).forEach(function(w){
+    if(!w)return;
+    var m;
+    if((m=w.match(/^(.+?)(moll|dur)$/))&&m[1]){r.qual=r.qual||(m[2]==='moll'?'m':'');w=m[1];}       // "amoll", "cdur"
+    else if(w==='moll'){r.qual=r.qual||'m';return;}
+    else if(w==='dur'){r.qual=r.qual||'';return;}
+    else if(/^(sept|septakkord|dominantseptakkord|septime)$/.test(w)){r.qual='7';return;}
+    else if((m=w.match(/^([a-h](?:is|es|s)?)7$/))){r.qual='7';w=m[1];}                                // "g7"
+    else if((m=w.match(/^([a-h](?:is|es|s)?)m$/))&&VNOTE[m[1]]!==undefined&&m[1]!=='a'){r.qual=r.qual||'m';w=m[1];} // "dm"; "am" bleibt das Wort
+    if(w==='sharp'||w==='kreuz'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+1)%12;return;}
+    if(w==='flat'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+11)%12;return;}
+    if(VNUM[w]&&r.num===null)r.num=VNUM[w];
+    if(w==='b'||w==='be'||w==='beh'){r.pcs.push(INTL?11:10);return;}
+    if(VNOTE[w]!==undefined)r.pcs.push(VNOTE[w]);
+  });
+  return r;
+}
+function voiceBtn(sel){return document.querySelector('#root '+sel);}
+// Wendet den erkannten Text auf die laufende Aufgabe an (drückt den passenden Antwortknopf)
+function voiceHeard(text){
+  voice.heard=text;
+  var r=voiceParse(text),q=state.q,m=state.mode,el=null,pc=r.pcs.length?r.pcs[r.pcs.length-1]:null;
+  if(!q||VOICE_MODES.indexOf(m)<0){render();return;}
+  if(q.done){if(r.next)next();else render();return;}
+  if(m==='name')el=pc===null?null:voiceBtn('[data-act="ans"][data-n="'+pc+'"]');
+  else if(m==='sname')el=pc===null?null:voiceBtn('[data-act="sans"][data-n="'+pc+'"]');
+  else if(m==='cname'){
+    var qual=r.qual===null?(r.num===7?'7':''):r.qual,k=pc===null?-1:chordIndexOf(pc,qual);
+    if(k>=0)el=voiceBtn('[data-act="cans"][data-v="'+k+'"]');
+  }
+  else if(m==='cstep'){
+    if(q.form===0){if(r.num)el=voiceBtn('[data-act="dans"][data-v="'+(r.num-1)+'"]');}
+    else if(pc!==null){
+      var want=r.qual===null?null:r.qual;
+      for(var i=0;i<7;i++){var x=triadAt(q.root,q.t,i);if(x.r===pc&&(want===null||x.q===want)){el=voiceBtn('[data-act="dans"][data-v="'+i+'"]');break;}}
+    }
+  }
+  else if(m==='cbuild'){
+    // Töne nacheinander sagen; beim dritten Ton (oder "prüfen") wird geprüft
+    r.pcs.forEach(function(n){if(q.sel.indexOf(n)<0&&q.sel.length<3)q.sel.push(n);});
+    if(q.sel.length>=3||(r.check&&q.sel.length))el=voiceBtn('[data-act="bchk"]');
+  }
+  if(el)handle(el);else render();
+}
+function voiceStart(){
+  if(!SR||voice.rec)return;
+  var rec=new SR();
+  rec.lang='de-DE';rec.continuous=true;rec.interimResults=false;rec.maxAlternatives=1;
+  rec.onresult=function(e){for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)voiceHeard(e.results[i][0].transcript.trim());};
+  rec.onerror=function(e){
+    if(e.error==='not-allowed'||e.error==='service-not-allowed'){voice.on=false;voice.err='Das Mikrofon ist nicht freigegeben. Erlaube es in den Browser-Einstellungen.';render();}
+  };
+  // Der Browser beendet das Zuhören nach Pausen von selbst: solange eingeschaltet, wieder starten
+  rec.onend=function(){voice.rec=null;if(voice.on&&VOICE_MODES.indexOf(state.mode)>=0)setTimeout(voiceStart,150);};
+  voice.rec=rec;
+  try{rec.start();}catch(e){voice.rec=null;}
+}
+function voiceStop(){if(voice.rec){var r=voice.rec;voice.rec=null;r.onend=null;try{r.stop();}catch(e){/* lief nicht mehr */}}}
+function voiceBar(){
+  if(!SR)return '<p class="hint" style="margin:0 0 12px">Antwort sprechen: Dieser Browser unterstützt keine Spracherkennung.</p>';
+  var tip={name:'Sag den Tonnamen, zum Beispiel „'+T('Fis','Fis oder F sharp')+'“.',sname:'Sag den Tonnamen.',cname:'Sag zum Beispiel „C-Dur“, „A-Moll“, „G sieben“ oder „'+HN+' vermindert“.',
+    cstep:'Sag die Stufe als Zahl („vier“) oder den Akkord („D-Moll“).',cbuild:'Sag die drei Töne nacheinander, beim dritten wird geprüft.'}[state.mode];
+  var o='<div class="ctl"><button class="btn'+(voice.on?' pri':'')+'" data-act="voice">Antwort sprechen: '+(voice.on?'an':'aus')+'</button></div>';
+  if(voice.err)o+='<p class="hint" style="margin:-4px 0 12px;color:var(--badText)">'+voice.err+'</p>';
+  else if(voice.on)o+='<p class="hint" style="margin:-4px 0 12px">'+tip+' „Weiter“ geht zur nächsten Aufgabe.'+(voice.heard?'<br>Gehört: <b>'+voice.heard.replace(/[<&]/g,'')+'</b>':'')+'</p>';
+  return o;
+}
+
 // ----- Runden und Bewertung -----
 // Eine Runde dauert 60 Sekunden. Je mehr richtige Antworten, desto mehr Sterne (nur mit mindestens 80 % richtig).
 // Ein Schritt ist geschafft, wenn jede seiner Übungen mindestens PASS_STARS Sterne hat.
@@ -1226,6 +1309,8 @@ function groupOf(mode){
 function render(){
   var g=groupOf(state.mode);
   if(state.round&&state.round.mode!==state.mode)cancelRound();
+  // Spracherkennung läuft nur in Übungen mit Antwortknöpfen
+  if(voice.on&&VOICE_MODES.indexOf(state.mode)>=0)voiceStart();else voiceStop();
   // Kopfzeile: Titel links, Einstellungen (Instrument wählen) oben rechts
   var fork='<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M8 3v8a4 4 0 0 0 8 0V3"/><path d="M12 15v6"/></svg>';
   var o='<div class="head"><div class="ttl"><h1>'+INSTR[state.inst].name+'</h1><div class="tun"><small>Stimmung</small>'+INSTR[state.inst].tuning+'</div></div><div class="tools">'+
@@ -1251,6 +1336,7 @@ function render(){
       o+='<div class="tabs sub ex" style="grid-template-columns:repeat('+ex.length+',1fr)">';
       ex.forEach(function(m){o+='<button class="tab'+(state.mode===m[0]?' on':'')+'" data-act="tab" data-v="'+m[0]+'">'+m[1]+'</button>';});
       o+='</div>'+roundBar();
+      if(VOICE_MODES.indexOf(state.mode)>=0)o+=voiceBar();
     }
   }
   o+=VIEWS[state.mode]();
@@ -1275,6 +1361,7 @@ function handle(el){
     state.q=null;state.resetArmed=false;render();
   }
   else if(act==='next'){next();}
+  else if(act==='voice'){voice.on=!voice.on;voice.err='';voice.heard='';render();}
   else if(act==='rstart'){startRound();}
   else if(act==='rstop'){cancelRound();state.roundResult=null;render();}
   else if(act==='settings'){state.settings=!state.settings;render();}
