@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.46';
+var VERSION='1.47';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1114,10 +1114,33 @@ function voiceHeard(text){
   }
   if(el)handle(el);else render();
 }
-// Eigene Spracherkennung (Vosk, läuft im Browser auf dem Gerät). Sie kennt nur die Wörter in VWORDS, deshalb versteht sie auch einzelne Tonnamen.
+// Eigene Spracherkennung (Vosk, läuft im Browser auf dem Gerät). Sie kennt nur die Wörter aus voiceWords(), deshalb versteht sie auch einzelne Tonnamen.
 // Bibliothek und deutsches Sprachmodell liegen im Ordner vosk/ und werden erst beim Einschalten geladen (Modell einmalig ca. 46 MB).
-var VWORDS=['a','h','c','d','e','f','g','b','cis','dis','fis','gis','ais','des','es','ges','as','dur','moll','vermindert','sieben',
-  'eins','zwei','drei','vier','fünf','sechs','weiter','prüfen','[unk]'];
+var VNOTEWORDS=['a','h','c','d','e','f','g','b','cis','dis','fis','gis','ais','des','es','ges','as'];
+var VOTHER=['dur','moll','vermindert','sieben','eins','zwei','drei','vier','fünf','sechs','weiter','prüfen','[unk]'];
+// Vokabular für die aktuelle Aufgabe: nur Tonnamen, die es gerade als Antwort gibt. Ohne Zwischentöne gibt es z. B. kein B,
+// dann kann ein gesprochenes E auch nicht als B verstanden werden.
+function voiceWords(){
+  var pcs={},q=state.q,cs=INSTR[state.inst].chords;
+  [].forEach.call(document.querySelectorAll('#root [data-act="ans"],#root [data-act="sans"],#root [data-act="bsel"]'),function(el){pcs[+el.getAttribute('data-n')]=1;});
+  [].forEach.call(document.querySelectorAll('#root [data-act="cans"]'),function(el){pcs[cs[+el.getAttribute('data-v')].r]=1;});
+  if(state.mode==='cstep'&&q&&q.form===1)for(var i=0;i<7;i++)pcs[triadAt(q.root,q.t,i).r]=1;
+  // Zusatzwörter nur dort, wo sie eine Antwort sein können: je weniger Wörter, desto weniger Verwechslungen
+  var m=state.mode,other=m==='cstep'?VOTHER:m==='cname'?['dur','moll','vermindert','sieben','weiter','[unk]']:m==='cbuild'?['weiter','prüfen','[unk]']:['weiter','[unk]'];
+  return VNOTEWORDS.filter(function(w){return pcs[w==='b'?(INTL?11:10):VNOTE[w]];}).concat(other);
+}
+function voiceMakeRec(){
+  var words=voiceWords(),key=words.join(' ');
+  if(!voice.ctx||(voice.rec&&voice.wkey===key))return;
+  if(voice.rec){try{voice.rec.remove();}catch(e){/* schon entfernt */}}
+  var rec=new voice.model.KaldiRecognizer(voice.ctx.sampleRate,JSON.stringify(words));
+  rec.on('result',function(m){
+    var txt=(m.result.text||'').replace(/\[unk\]/g,' ').replace(/\s+/g,' ').trim();
+    // Die eigenen Töne der App nicht als Antwort werten
+    if(txt&&Date.now()-lastSoundAt>900)voiceHeard(txt);
+  });
+  voice.rec=rec;voice.wkey=key;
+}
 function voiceFail(msg){voice.on=false;voice.loading=false;voice.starting=false;voice.err=msg;voiceStop();render();}
 function voiceLoad(){
   if(voice.model||voice.loading)return;
@@ -1162,16 +1185,10 @@ function voiceStart(){
     voice.starting=false;
     if(!voice.on||VOICE_MODES.indexOf(state.mode)<0){stream.getTracks().forEach(function(x){x.stop();});return;}
     var ctx=new (window.AudioContext||window.webkitAudioContext)();
-    var rec=new voice.model.KaldiRecognizer(ctx.sampleRate,JSON.stringify(VWORDS));
-    rec.on('result',function(m){
-      var txt=(m.result.text||'').replace(/\[unk\]/g,' ').replace(/\s+/g,' ').trim();
-      // Die eigenen Töne der App nicht als Antwort werten
-      if(txt&&Date.now()-lastSoundAt>900)voiceHeard(txt);
-    });
     var src=ctx.createMediaStreamSource(stream),node=ctx.createScriptProcessor(4096,1,1);
-    node.onaudioprocess=function(e){try{rec.acceptWaveform(e.inputBuffer);}catch(x){/* Erkennung gerade nicht bereit */}};
+    node.onaudioprocess=function(e){try{if(voice.rec)voice.rec.acceptWaveform(e.inputBuffer);}catch(x){/* Erkennung gerade nicht bereit */}};
     src.connect(node);node.connect(ctx.destination);
-    voice.stream=stream;voice.ctx=ctx;voice.rec=rec;voice.node=node;
+    voice.stream=stream;voice.ctx=ctx;voice.node=node;voiceMakeRec();
     render();
   }).catch(function(){voiceFail('Das Mikrofon ist nicht freigegeben. Erlaube es in den Browser-Einstellungen.');});
 }
@@ -1399,6 +1416,7 @@ function render(){
   }
   o+=VIEWS[state.mode]();
   document.getElementById('root').innerHTML=o;
+  if(voice.stream)voiceMakeRec(); // Vokabular an die sichtbaren Antworten anpassen
 }
 
 // Springt nach einer richtigen Antwort zur nächsten Frage, außer der Nutzer hat inzwischen selbst weitergeschaltet oder den Tab gewechselt.
