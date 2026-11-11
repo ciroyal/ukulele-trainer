@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 16:30';
+var VERSION='2026-11-11 · 16:45';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1128,7 +1128,8 @@ function voiceLoad(){
   s.onload=startModel;
   document.head.appendChild(s);
   function startModel(){
-    var m=new Vosk.Model('vosk/model-de.tar.gz');
+    // vollständige Adresse: die Bibliothek löst relative Pfade sonst gegen die Hauptadresse der Domain auf (auf GitHub Pages falsch)
+    var m=new Vosk.Model(new URL('vosk/model-de.tar.gz',location.href).href);
     // Fortschritt des Downloads (die Meldung kommt aus dem angepassten Worker in vosk/vosk.js)
     m.on('progress',function(p){
       voice.pct=Math.min(100,Math.round(100*p.loaded/(p.total||46476437)));
