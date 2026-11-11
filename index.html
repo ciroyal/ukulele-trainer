@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 14:15';
+var VERSION='2026-11-11 · 14:30';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -708,7 +708,7 @@ function viewName(){
     if(q.ok)fb='<p class="fb ok">Richtig!</p>';
     else{fb='<p class="fb bad">Es ist '+NAMES[q.n]+', nicht '+NAMES[q.picked]+'.</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
   }else dots=[{s:q.s,f:q.f,c:'q',l:'?'}];
-  var list=[];for(i=0;i<12;i++)if(state.sharps||isNat(i))list.push(i);
+  var list=[];for(i=0;i<12;i++){var an=(i+9)%12;if(state.sharps||isNat(an))list.push(an);} // Antworten beginnen bei A
   var a='<div class="ans">';
   list.forEach(function(n){
     var c='btn';

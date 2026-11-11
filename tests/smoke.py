@@ -311,6 +311,9 @@ try:
         check('Lernpfad zeigt 3 Stufen', pg.locator('.stage').count() == 3 and 'Als Nächstes' in pg.inner_text('#root'))
         txt = pg.inner_text('#root')
         check('Lernpfad: Schritte statt Stufen, Sterne je Übung', 'Schritt 1 · Töne' in txt and 'Stufe 1' not in txt and '0 von 2 Übungen bestanden' in txt and 'Finden ☆☆☆ · Erkennen ☆☆☆' in txt and 'Bonus: Spielen' in txt and 'Ganzton' not in txt and 'Du lernst, wo welcher Ton' in txt and '(' not in txt.split('Zwischentöne')[-1][:3])
+        go(pg, 'name')
+        first = pg.locator('[data-act="ans"]').first.inner_text(); last = pg.locator('[data-act="ans"]').last.inner_text()
+        check('Töne erkennen: Antworten beginnen mit A', first == 'A' and last == 'G', first + ' ' + last)
         # Runden und Bewertung
         go(pg, 'find')
         check('Übung zeigt Rundenkarte mit Schwellen', 'Runde · 60 s' in pg.inner_text('#root') and '★★ ab 12' in pg.inner_text('#root'))
