@@ -129,6 +129,14 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 .inround .ctl,.inround .sel,.inround .score,.inround .vhint{display:none}
 .rrun{position:sticky;top:6px;z-index:7;padding:8px 14px;margin-bottom:8px}
 .rrun .bar{height:8px}
+/* Haken als Schalter im Grün der App statt im Blau des Browsers */
+input[type=checkbox]{appearance:none;-webkit-appearance:none;flex:none;width:40px;height:24px;margin:0;border-radius:12px;background:var(--line);position:relative;cursor:pointer;transition:background .15s;vertical-align:middle}
+input[type=checkbox]::after{content:"";position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:50%;background:#fff;box-shadow:0 1px 2px rgba(0,0,0,.3);transition:left .15s}
+input[type=checkbox]:checked{background:var(--accent)}
+input[type=checkbox]:checked::after{left:19px}
+input[type=checkbox]:disabled{opacity:.5;cursor:default}
+input[type=checkbox]:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+label.ctl{flex-wrap:nowrap;gap:10px}
 </style>
 </head>
 <body>
@@ -138,7 +146,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.53';
+var VERSION='1.54';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
