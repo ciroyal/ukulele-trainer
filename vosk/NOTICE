@@ -1,3 +1,5 @@
+Changes in this copy (ukulele-trainer): the embedded worker in vosk.js additionally posts a "progress" message while the model archive downloads.
+
 Vosk-Browser
 Copyright 2020-2022 Ciaran O'Reilly
 

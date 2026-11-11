@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 15:30';
+var VERSION='2026-11-11 · 16:00';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1125,8 +1125,19 @@ function voiceLoad(){
   var s=document.createElement('script');s.src='vosk/vosk.js';
   s.onerror=function(){voiceFail('Die Spracherkennung konnte nicht geladen werden.');};
   s.onload=function(){
-    Vosk.createModel('vosk/model-de.tar.gz').then(function(m){voice.model=m;voice.loading=false;render();})
-      .catch(function(){voiceFail('Das Sprachmodell konnte nicht geladen werden.');});
+    var m=new Vosk.Model('vosk/model-de.tar.gz');
+    // Fortschritt des Downloads (die Meldung kommt aus dem angepassten Worker in vosk/vosk.js)
+    m.on('progress',function(p){
+      voice.pct=Math.min(100,Math.round(100*p.loaded/(p.total||46476437)));
+      var b=document.getElementById('vbar'),x=document.getElementById('vpct');
+      if(b)b.style.width=voice.pct+'%';
+      if(x)x.textContent=voice.pct+' %';
+    });
+    m.on('load',function(r){
+      if(r.result){voice.model=m;voice.loading=false;render();}
+      else voiceFail('Das Sprachmodell konnte nicht geladen werden.');
+    });
+    m.on('error',function(){voiceFail('Das Sprachmodell konnte nicht geladen werden.');});
   };
   document.head.appendChild(s);
 }
@@ -1164,7 +1175,7 @@ function voiceBar(){
     cstep:'Sag die Stufe als Zahl („vier“) oder den Akkord („D Moll“).',cbuild:'Sag die drei Töne nacheinander, beim dritten wird geprüft.'}[state.mode];
   var o='<div class="ctl"><button class="btn'+(voice.on?' pri':'')+'" data-act="voice">Antwort sprechen: '+(voice.on?'an':'aus')+'</button></div>';
   if(voice.err)o+='<p class="hint" style="margin:-4px 0 12px;color:var(--badText)">'+voice.err+'</p>';
-  else if(voice.on&&!voice.model)o+='<p class="hint" style="margin:-4px 0 12px"><b>Lade Sprachmodell …</b> Das dauert beim ersten Mal etwas (einmalig ca. 46 MB).</p>';
+  else if(voice.on&&!voice.model)o+='<div class="card" style="margin-top:-4px"><div class="rtop"><b>Lade Sprachmodell …</b><span id="vpct">'+(voice.pct?voice.pct+' %':'')+'</span></div><div class="bar" style="margin:8px 0 6px"><i id="vbar" style="width:'+(voice.pct||0)+'%"></i></div><span class="hint">Einmaliger Download, ca. 46 MB. Danach startet es in wenigen Sekunden.</span></div>';
   else if(voice.on)o+='<p class="hint" style="margin:-4px 0 12px">'+(voice.stream?'<b>Hört zu …</b> ':'')+tip+' „Weiter“ geht zur nächsten Aufgabe.'+(voice.heard?'<br>Gehört: <b>'+voice.heard.replace(/[<&]/g,'')+'</b>':'')+'</p>';
   return o;
 }
