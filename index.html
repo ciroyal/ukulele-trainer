@@ -138,7 +138,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.51';
+var VERSION='1.52';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1140,6 +1140,8 @@ function voiceWords(){
   var notes=VNOTEWORDS.filter(function(w){return pcs[w==='b'?(INTL?11:10):VNOTE[w]];});
   // E und B klingen fast gleich ("eh"/"beh") und E wurde oft als B verstanden: E mehrfach nennen, das macht es für die Erkennung wahrscheinlicher
   if(notes.indexOf('e')>=0&&notes.indexOf('b')>=0)notes.push('e','e');
+  // dasselbe für H und A ("ha"/"ah"): H wurde oft als A verstanden
+  if(notes.indexOf('h')>=0&&notes.indexOf('a')>=0)notes.push('h','h');
   return notes.concat(other);
 }
 function voiceMakeRec(){

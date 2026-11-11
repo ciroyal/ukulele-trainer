@@ -329,7 +329,7 @@ try:
         pg.evaluate("state.sharps=true;state.q=null;render()")
         w2 = pg.evaluate("voiceWords().join(' ')")
         pg.evaluate("state.sharps=false;state.q=null;render()")
-        check('Sprache: Vokabular nur aus sichtbaren Antworten (kein B ohne Zwischentöne)', w1 == 'a h c d e f g weiter [unk]' and ' b ' in w2 and 'cis' in w2, w1)
+        check('Sprache: Vokabular nur aus sichtbaren Antworten (kein B ohne Zwischentöne)', w1 == 'a h c d e f g h h weiter [unk]' and ' b ' in w2 and 'cis' in w2, w1)
         check('Sprechen-Knopf in Antwort-Übungen', pg.locator('[data-act="voice"]').count() == 1)
         pg.evaluate("state.q={s:1,f:2,n:2,done:false,ok:false,picked:null,id:1};render();voiceHeard('D')")
         check('Sprache: Ton erkennen richtig', pg.evaluate("state.q.done&&state.q.ok"))
