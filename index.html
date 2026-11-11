@@ -134,7 +134,7 @@ h1{font-size:34px;font-weight:700;letter-spacing:-.5px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Stand der App (wird bei jeder Änderung hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='2026-11-11 · 13:00';
+var VERSION='2026-11-11 · 14:00';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1059,7 +1059,9 @@ var SR=window.SpeechRecognition||window.webkitSpeechRecognition;
 var voice={on:false,rec:null,heard:'',err:''};
 // So schreibt die Spracherkennung die gesprochenen Tonnamen häufig (deutsche Buchstabennamen)
 var VNOTE={c:0,ce:0,ceh:0,zeh:0,tse:0,tseh:0,z:0,cis:1,zis:1,ziss:1,des:1,dess:1,d:2,de:2,deh:2,dis:3,diss:3,es:3,ess:3,e:4,eh:4,ee:4,f:5,ef:5,eff:5,
-  fis:6,fiss:6,ges:6,gess:6,g:7,ge:7,geh:7,gis:8,giss:8,as:8,ass:8,a:9,ah:9,ais:10,aiss:10,h:11,ha:11,hah:11};
+  fis:6,fiss:6,ges:6,gess:6,g:7,ge:7,geh:7,gis:8,giss:8,as:8,ass:8,a:9,ah:9,ais:10,aiss:10,h:11,ha:11,hah:11,
+  // Buchstabier-Namen: einzelne Buchstaben versteht die Spracherkennung auf dem Handy meist nicht, ganze Wörter schon
+  anton:9,'cäsar':0,caesar:0,cesar:0,'zäsar':0,dora:2,emil:4,friedrich:5,gustav:7,gustaf:7,heinrich:11};
 var VNUM={eins:1,erste:1,ersten:1,'1':1,zwei:2,zweite:2,zweiten:2,'2':2,drei:3,dritte:3,dritten:3,'3':3,vier:4,vierte:4,vierten:4,'4':4,
   'fünf':5,'fünfte':5,'fünften':5,'5':5,sechs:6,sechste:6,sechsten:6,'6':6,sieben:7,siebte:7,siebten:7,'7':7};
 // Liest aus dem erkannten Text: Töne (pcs), Akkord-Art (qual), Zahl (num) und Befehle (weiter, prüfen)
@@ -1076,10 +1078,10 @@ function voiceParse(text){
     else if(/^(sept|septakkord|dominantseptakkord|septime)$/.test(w)){r.qual='7';return;}
     else if((m=w.match(/^([a-h](?:is|es|s)?)7$/))){r.qual='7';w=m[1];}                                // "g7"
     else if((m=w.match(/^([a-h](?:is|es|s)?)m$/))&&VNOTE[m[1]]!==undefined&&m[1]!=='a'){r.qual=r.qual||'m';w=m[1];} // "dm"; "am" bleibt das Wort
-    if(w==='sharp'||w==='kreuz'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+1)%12;return;}
-    if(w==='flat'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+11)%12;return;}
+    if(w==='sharp'||w==='kreuz'||w==='erhöht'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+1)%12;return;}
+    if(w==='flat'||w==='erniedrigt'||w==='tief'){if(r.pcs.length)r.pcs[r.pcs.length-1]=(r.pcs[r.pcs.length-1]+11)%12;return;}
     if(VNUM[w]&&r.num===null)r.num=VNUM[w];
-    if(w==='b'||w==='be'||w==='beh'){r.pcs.push(INTL?11:10);return;}
+    if(w==='b'||w==='be'||w==='beh'||w==='berta'||w==='bertha'){r.pcs.push(INTL?11:10);return;}
     if(VNOTE[w]!==undefined)r.pcs.push(VNOTE[w]);
   });
   return r;
@@ -1114,8 +1116,13 @@ function voiceHeard(text){
 function voiceStart(){
   if(!SR||voice.rec)return;
   var rec=new SR();
-  rec.lang='de-DE';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=1;
-  rec.onresult=function(e){voice.again=true;for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal)voiceHeard(e.results[i][0].transcript.trim());};
+  rec.lang='de-DE';rec.continuous=false;rec.interimResults=false;rec.maxAlternatives=5;
+  rec.onresult=function(e){voice.again=true;for(var i=e.resultIndex;i<e.results.length;i++)if(e.results[i].isFinal){
+    // von den Vorschlägen der Erkennung den ersten nehmen, in dem ein Ton, eine Zahl oder ein Befehl steckt
+    var res=e.results[i],best=res[0].transcript;
+    for(var j=0;j<res.length;j++){var p=voiceParse(res[j].transcript);if(p.pcs.length||p.num||p.next||p.check){best=res[j].transcript;break;}}
+    voiceHeard(best.trim());
+  }};
   rec.onerror=function(e){
     if(e.error==='not-allowed'||e.error==='service-not-allowed'){voice.on=false;voice.err='Das Mikrofon ist nicht freigegeben. Erlaube es in den Browser-Einstellungen.';render();}
   };
@@ -1133,8 +1140,9 @@ function voiceStart(){
 function voiceStop(){if(voice.rec){var r=voice.rec;voice.rec=null;r.onend=null;try{r.stop();}catch(e){/* lief nicht mehr */}}}
 function voiceBar(){
   if(!SR)return '<p class="hint" style="margin:0 0 12px">Antwort sprechen: Dieser Browser unterstützt keine Spracherkennung.</p>';
-  var tip={name:'Sag den Tonnamen, zum Beispiel „'+T('Fis','Fis oder F sharp')+'“.',sname:'Sag den Tonnamen.',cname:'Sag zum Beispiel „C-Dur“, „A-Moll“, „G sieben“ oder „'+HN+' vermindert“.',
-    cstep:'Sag die Stufe als Zahl („vier“) oder den Akkord („D-Moll“).',cbuild:'Sag die drei Töne nacheinander, beim dritten wird geprüft.'}[state.mode];
+  var abc='Sag die Töne als Namen: Anton, Berta, Cäsar, Dora, Emil, Friedrich, Gustav, Heinrich. Zwischentöne mit „erhöht“ oder „erniedrigt“ (Cis = „Cäsar erhöht“). ';
+  var tip=abc+{name:'',sname:'',cname:'Akkorde: „Cäsar Dur“, „Anton Moll“, „Gustav sieben“, „Heinrich vermindert“.',
+    cstep:'Stufe als Zahl („vier“) oder als Akkord („Dora Moll“).',cbuild:'Sag die drei Töne nacheinander, beim dritten wird geprüft.'}[state.mode];
   var o='<div class="ctl"><button class="btn'+(voice.on?' pri':'')+'" data-act="voice">Antwort sprechen: '+(voice.on?'an':'aus')+'</button></div>';
   if(voice.err)o+='<p class="hint" style="margin:-4px 0 12px;color:var(--badText)">'+voice.err+'</p>';
   else if(voice.on)o+='<p class="hint" style="margin:-4px 0 12px">'+(voice.rec?'<b>Hört zu …</b> ':'<button class="btn" data-act="vlisten" style="padding:4px 10px;font-size:13px;margin-right:6px">Nochmal zuhören</button>')+tip+' „Weiter“ geht zur nächsten Aufgabe.'+(voice.heard?'<br>Gehört: <b>'+voice.heard.replace(/[<&]/g,'')+'</b>':'')+'</p>';

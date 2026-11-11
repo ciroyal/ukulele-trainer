@@ -318,6 +318,8 @@ try:
         check('Sprache: Tonnamen', pr['Fis']['pcs'] == [6] and pr['es ist ein C']['pcs'][-1] == 0 and pr['c e g']['pcs'] == [0, 4, 7] and pr['B']['pcs'] == [10], str(pr['Fis']))
         check('Sprache: Akkord-Art', pr['A-Moll']['qual'] == 'm' and pr['A-Moll']['pcs'] == [9] and pr['C-Dur']['qual'] == '' and pr['G7']['qual'] == '7' and pr['G7']['pcs'] == [7] and pr['H vermindert']['qual'] == 'dim' and pr['Cis Moll']['pcs'] == [1] and pr['amoll']['pcs'] == [9] and pr['amoll']['qual'] == 'm', str(pr['G7']))
         check('Sprache: Zahl und Befehl', pr['vier']['num'] == 4 and pr['G sieben']['num'] == 7 and pr['weiter']['next'] is True)
+        pa = {x: _j.loads(P(x)) for x in ['Cäsar', 'Cäsar erhöht', 'Emil erniedrigt', 'Anton Moll', 'Gustav sieben', 'Berta', 'Heinrich vermindert']}
+        check('Sprache: Buchstabier-Namen', pa['Cäsar']['pcs'] == [0] and pa['Cäsar erhöht']['pcs'] == [1] and pa['Emil erniedrigt']['pcs'] == [3] and pa['Anton Moll']['pcs'] == [9] and pa['Anton Moll']['qual'] == 'm' and pa['Gustav sieben']['pcs'] == [7] and pa['Berta']['pcs'] == [10] and pa['Heinrich vermindert']['qual'] == 'dim', str(pa))
         go(pg, 'name')
         check('Sprechen-Knopf in Antwort-Übungen', pg.locator('[data-act="voice"]').count() == 1)
         pg.evaluate("state.q={s:1,f:2,n:2,done:false,ok:false,picked:null,id:1};render();voiceHeard('D')")
