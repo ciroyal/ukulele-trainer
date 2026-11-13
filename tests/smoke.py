@@ -44,7 +44,7 @@ def set_inst(pg, inst):
 def go(pg, mode):
     """Öffnet eine Unterseite: erst die Gruppe, dann (falls nötig) den Unterreiter."""
     groups = {'map':'notes','find':'notes','name':'notes','cmap':'chords','cfind':'chords','cname':'chords','cplay':'chords','cdeg':'chords','tnotes':'notes','tscales':'scales','tchords':'chords','cbuild':'chords','cstep':'chords','path':'path',
-              'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','tune':'tune','stats':'stats'}
+              'smap':'scales','sfind':'scales','sname':'scales','splay':'scales','splay2':'scales','tune':'tune','stats':'stats'}
     pg.click(f'[data-act="grp"][data-v="{groups[mode]}"]')
     if pg.evaluate('state.mode') != mode:
         if pg.locator(f'[data-act="tab"][data-v="{mode}"]').count() == 0:
@@ -101,7 +101,7 @@ try:
         b = launch(p, a440)
         pg = new_page(b, errors, bad)
 
-        for v in ['path', 'map', 'tnotes', 'find', 'name', 'cmap', 'cdeg', 'tchords', 'cbuild', 'cstep', 'cfind', 'cname', 'cplay', 'smap', 'tscales', 'sfind', 'sname', 'splay', 'tune', 'stats']:
+        for v in ['path', 'map', 'tnotes', 'find', 'name', 'cmap', 'cdeg', 'tchords', 'cbuild', 'cstep', 'cfind', 'cname', 'cplay', 'smap', 'tscales', 'sfind', 'sname', 'splay', 'splay2', 'tune', 'stats']:
             go(pg, v)
             check('Seite ' + v, pg.evaluate('state.mode') == v and pg.locator('#root .card, #root svg').count() > 0)
 
@@ -375,15 +375,26 @@ try:
         pg.select_option('select[data-act="mpos"]', '-1')
         go(pg, 'splay')
         pg.select_option('select[data-act="proot"]', '0'); pg.select_option('select[data-act="ptype"]', '0')
-        pg.evaluate("state.q=null;render()")
-        sq = pg.evaluate("state.q.seq.join(' ')")
-        check('Spielen: immer auf und ab, keine Richtungs-Auswahl', sq == '0 2 4 5 7 9 11 0 11 9 7 5 4 2 0' and pg.locator('select[data-act="sdir"]').count() == 0 and 'auf und ab' in pg.inner_text('#root'), sq)
-        pg.select_option('select[data-act="sstart"]', '1')
-        st = pg.evaluate("(function(){var u={},ok=true;for(var i=0;i<14;i++){newForMode();var q=state.q;u[q.start]=1;if(q.seq[0]!==q.start||q.seq[q.seq.length-1]!==q.start||q.seq[7]!==q.start||q.seq.length!==15)ok=false;}return [Object.keys(u).length,ok];})()")
-        check('Spielen: Start auf wechselndem Ton', st == [7, True], str(st))
-        pg.select_option('select[data-act="spos"]', '1')
-        check('Spielen: Position zeigt Griffbrett und Titel', pg.locator('.fb-svg').count() == 1 and 'Position 2' in pg.inner_text('.card .prompt >> nth=-1'), pg.inner_text('#root')[-200:])
-        pg.select_option('select[data-act="spos"]', '-1'); pg.select_option('select[data-act="sstart"]', '0')
+        pg.evaluate("stats.levels={};stats.rounds={};state.lv={};state.q=null;render()")
+        sq = pg.evaluate("state.q.mseq.join(' ')")
+        check('Ab Grundton, Stufe 1: C4 hoch bis C5 und zurück', sq == '60 62 64 65 67 69 71 72 71 69 67 65 64 62 60' and pg.evaluate("state.q.level") == 1 and 'Position 1' in pg.inner_text('#root') and pg.locator('.fb-svg').count() == 1, sq)
+        dis = pg.evaluate("[].map.call(document.querySelectorAll('select[data-act=slevel] option'),function(o){return o.disabled?1:0}).join('')")
+        check('Stufen 2 bis 5 anfangs gesperrt', dis == '01111', dis)
+        # Runde: Töne zählen, mit 2 Sternen wird die nächste Stufe frei
+        pg.click('[data-act="rstart"]')
+        pg.evaluate("for(var i=0;i<41;i++){state.mic.stable=3;state.mic.cool=0;scalePlayTick(state.q.seq[state.q.idx]);if(state.q.done)next();}")
+        check('Runde zählt gespielte Töne', pg.evaluate("state.round.ok") == 41 and pg.evaluate("state.round.total") == 41, str(pg.evaluate("state.round.ok")))
+        pg.evaluate("finishRound()")
+        check('2 Sterne schalten Position 1–2 frei', pg.evaluate("stats.levels.splay") == 2 and pg.evaluate("state.q.level") == 2 and 'Position 1–2 freigeschaltet' in pg.inner_text('#root') and pg.evaluate("maxLevel('splay2')") == 1, pg.inner_text('#root')[:300])
+        sq2 = pg.evaluate("state.q.mseq.join(' ')")
+        check('Stufe 2 nutzt den größeren Bereich (bis D5)', sq2 == '60 62 64 65 67 69 71 72 74 72 71 69 67 65 64 62 60', sq2)
+        pg.select_option('select[data-act="slevel"]', '1')
+        check('Stufe 1 bleibt wählbar', pg.evaluate("state.q.level") == 1)
+        go(pg, 'splay2')
+        st = pg.evaluate("(function(){var u={},ok=true;for(var i=0;i<14;i++){newForMode();var q=state.q,mx=Math.max.apply(null,q.mseq),mn=Math.min.apply(null,q.mseq);u[q.start]=1;if(q.seq[0]!==q.start||q.seq[q.seq.length-1]!==q.start||q.mseq.indexOf(mx)<0||q.mseq.lastIndexOf(mn)<q.mseq.indexOf(mx))ok=false;for(var k=1;k<q.mseq.length;k++)if(q.mseq[k]===q.mseq[k-1])ok=false;}return [Object.keys(u).length,ok];})()")
+        check('Wechselton: Start reihum, hoch zum höchsten, runter zum tiefsten, zurück', st == [7, True], str(st))
+        check('Wechselton hat eigene Stufen', pg.evaluate("curLevel('splay2')") == 1 and 'Wechselton' in pg.inner_text('.tabs.ex'))
+        pg.evaluate("stats.levels={};stats.rounds={};state.lv={};state.levelUp=null;save()")
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         # Keine gleiche Aufgabe direkt hintereinander
         REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
