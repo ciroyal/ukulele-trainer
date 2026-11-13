@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.58';
+var VERSION='1.59';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -221,7 +221,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={sDir:0,sStart:0,sPos:-1,mPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={sStart:0,sPos:-1,mPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},gx:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig (pRoot -2 = zufällig aus allen 12 Grundtönen)
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -657,11 +657,11 @@ function newScaleQ(kind){
     q.root=pickc.r;q.k=pickc.k;q.picked=null;
   }
   if(kind==='play'){
-    // Startton: Grundton oder ein anderer Ton der Tonleiter (reihum); Richtung: 0 auf, 1 ab, 2 auf und ab
+    // Startton: Grundton oder ein anderer Ton der Tonleiter (reihum); gespielt wird immer auf und ab
     var st=state.sStart?bagPick('splay-start-'+set.length,set.map(function(x,i){return i;})):0;
     var up=set.slice(st).concat(set.slice(0,st)).concat([set[st]]),down=up.slice().reverse();
-    q.start=set[st];q.dir=state.sDir;
-    q.seq=state.sDir===1?down:state.sDir===2?up.concat(down.slice(1)):up;
+    q.start=set[st];
+    q.seq=up.concat(down.slice(1));
     q.pos=state.sPos===5?bagPick('splay-pos',[0,1,2,3,4]):state.sPos;
     q.idx=0;
   }
@@ -1309,7 +1309,7 @@ function voiceBar(){
 // Ein Schritt ist geschafft, wenn jede seiner Übungen mindestens PASS_STARS Sterne hat.
 var ROUND_SEC=60,PASS_STARS=2,roundTimer=null;
 // richtige Antworten pro Minute für 1, 2 und 3 Sterne
-var RATING={find:[8,12,16],name:[12,17,23],sfind:[3,4,6],sname:[9,13,18],splay:[3,4,5],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
+var RATING={find:[8,12,16],name:[12,17,23],sfind:[3,4,6],sname:[9,13,18],splay:[2,3,4],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
 function starsFor(mode,ok,total){
   if(!total||ok/total<0.8)return 0;
   var s=0;RATING[mode].forEach(function(x){if(ok>=x)s++;});return s;
@@ -1450,10 +1450,8 @@ function viewScaleName(){
 function viewScalePlay(){
   if(!state.q)newScaleQ('play');
   var q=state.q,sc=SCALES[q.t],mic=state.mic,fb='',btn='',live='';
-  var dirTxt=['aufwärts','abwärts','auf und ab'][q.dir||0];
-  var title='Spiele '+scaleName(q.root,sc)+(q.start!==undefined&&q.start!==q.root?' ab '+NAMES[q.start]:'')+' '+dirTxt+(q.pos>=0?' · Position '+(q.pos+1):'');
-  var opts='<div class="sel"><label><select data-act="sdir">'+['Aufwärts','Abwärts','Auf und ab'].map(function(x,i){return '<option value="'+i+'"'+(state.sDir===i?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label>'+
-    '<label><select data-act="sstart"><option value="0"'+(state.sStart?'':' selected')+'>Ab Grundton</option><option value="1"'+(state.sStart?' selected':'')+'>Ab wechselndem Ton</option></select></label>'+
+  var title='Spiele '+scaleName(q.root,sc)+(q.start!==undefined&&q.start!==q.root?' ab '+NAMES[q.start]:'')+' auf und ab'+(q.pos>=0?' · Position '+(q.pos+1):'');
+  var opts='<div class="sel"><label><select data-act="sstart"><option value="0"'+(state.sStart?'':' selected')+'>Ab Grundton</option><option value="1"'+(state.sStart?' selected':'')+'>Ab wechselndem Ton</option></select></label>'+
     '<label><select data-act="spos"><option value="-1"'+(state.sPos<0?' selected':'')+'>Position frei</option>'+posOptions(state.sPos,'')+'<option value="5"'+(state.sPos===5?' selected':'')+'>Position wechselnd</option></select></label></div>';
   var board='';
   if(q.pos>=0){
@@ -1688,7 +1686,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='sdir'||a==='sstart'||a==='spos'||a==='mpos')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='sstart'||a==='spos'||a==='mpos')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -1699,7 +1697,6 @@ root.addEventListener('change',function(e){
   else if(a==='sharps'){state.sharps=el.checked;state.q=null;state.last=null;render();}
   else if(a==='awake'){state.awake=el.checked;try{localStorage.setItem('griffbrett-awake',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}keepAwake();render();}
   else if(a==='sound'){state.sound=el.checked;try{localStorage.setItem('griffbrett-sound',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}}
-  else if(a==='sdir'){state.sDir=+el.value;state.q=null;render();}
   else if(a==='sstart'){state.sStart=+el.value;state.q=null;render();}
   else if(a==='spos'){state.sPos=+el.value;state.q=null;render();}
   else if(a==='mpos'){state.mPos=+el.value;render();}

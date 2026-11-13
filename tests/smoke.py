@@ -375,12 +375,11 @@ try:
         pg.select_option('select[data-act="mpos"]', '-1')
         go(pg, 'splay')
         pg.select_option('select[data-act="proot"]', '0'); pg.select_option('select[data-act="ptype"]', '0')
-        seqs = []
-        for d in ['0', '1', '2']:
-            pg.select_option('select[data-act="sdir"]', d); seqs.append(pg.evaluate("state.q.seq.join(' ')"))
-        check('Spielen: auf, ab, auf und ab', seqs == ['0 2 4 5 7 9 11 0', '0 11 9 7 5 4 2 0', '0 2 4 5 7 9 11 0 11 9 7 5 4 2 0'], str(seqs))
-        pg.select_option('select[data-act="sdir"]', '0'); pg.select_option('select[data-act="sstart"]', '1')
-        st = pg.evaluate("(function(){var u={},ok=true;for(var i=0;i<14;i++){newForMode();var q=state.q;u[q.start]=1;if(q.seq[0]!==q.start||q.seq[q.seq.length-1]!==q.start||q.seq.length!==8)ok=false;}return [Object.keys(u).length,ok];})()")
+        pg.evaluate("state.q=null;render()")
+        sq = pg.evaluate("state.q.seq.join(' ')")
+        check('Spielen: immer auf und ab, keine Richtungs-Auswahl', sq == '0 2 4 5 7 9 11 0 11 9 7 5 4 2 0' and pg.locator('select[data-act="sdir"]').count() == 0 and 'auf und ab' in pg.inner_text('#root'), sq)
+        pg.select_option('select[data-act="sstart"]', '1')
+        st = pg.evaluate("(function(){var u={},ok=true;for(var i=0;i<14;i++){newForMode();var q=state.q;u[q.start]=1;if(q.seq[0]!==q.start||q.seq[q.seq.length-1]!==q.start||q.seq[7]!==q.start||q.seq.length!==15)ok=false;}return [Object.keys(u).length,ok];})()")
         check('Spielen: Start auf wechselndem Ton', st == [7, True], str(st))
         pg.select_option('select[data-act="spos"]', '1')
         check('Spielen: Position zeigt Griffbrett und Titel', pg.locator('.fb-svg').count() == 1 and 'Position 2' in pg.inner_text('.card .prompt >> nth=-1'), pg.inner_text('#root')[-200:])
