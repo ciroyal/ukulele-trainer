@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.57';
+var VERSION='1.58';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -221,7 +221,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={sDir:0,sStart:0,sPos:-1,mPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},gx:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig (pRoot -2 = zufällig aus allen 12 Grundtönen)
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -580,6 +580,39 @@ function newChordQ(){
   var i=weighted(chordsInKey().inKey,'chords',function(k){return cs[k].n;});
   state.q={i:i,fing:STR.map(function(){return 0;}),done:false,ok:false,picked:null,id:Date.now()};
 }
+// ----- Positionen (Lagen) einer Tonleiter -----
+// Die fünf üblichen Griffbilder: Auf der tiefsten Saite liegen die fünf Pentatonik-Töne der Tonleiter; Position p reicht dort
+// vom p-ten bis zum nächsten. Auf jeder anderen Saite gehört das benachbarte Pentatonik-Paar dazu, das am nächsten an dieser
+// Stelle liegt, bei Dur und Moll ergänzt um die Tonleitertöne direkt daneben. Ergebnis: Liste {s,f}. (Töne geprüft in tests/smoke.py)
+function scaleBox(root,sc,p){
+  var set=scaleNotes(root,sc);
+  var pent=(sc.iv.length===5?sc.iv:(sc.iv.indexOf(3)>=0?[0,3,5,7,10]:[0,2,4,7,9])).map(function(i){return (root+i)%12;});
+  var ref=0,s,f;
+  for(s=1;s<STR.length;s++)if(STR[s].m<STR[ref].m)ref=s;
+  var anchors=[];
+  for(f=0;f<12;f++)if(pent.indexOf(noteAt(ref,f))>=0)anchors.push(f);
+  var a=anchors[p],b=p<4?anchors[p+1]:anchors[0]+12,c=(a+b)/2,out=[];
+  for(s=0;s<STR.length;s++){
+    var pf=[],best=null;
+    for(f=0;f<=26;f++)if(pent.indexOf(noteAt(s,f))>=0)pf.push(f);
+    for(var i=0;i+1<pf.length;i++){var d=Math.abs((pf[i]+pf[i+1])/2-c);if(best===null||d<best.d)best={d:d,lo:pf[i],hi:pf[i+1]};}
+    for(f=Math.max(0,best.lo-1);f<=best.hi+1;f++)if(set.indexOf(noteAt(s,f))>=0)out.push({s:s,f:f});
+  }
+  return out;
+}
+// Griffbrett-Ausschnitt für eine Position; mark(n) liefert die Farbklasse eines Tons
+function boxBoard(root,sc,p,mark){
+  var box=scaleBox(root,sc,p),lo=99,hi=0;
+  box.forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
+  var from=lo>0?lo-1:0;
+  var dots=box.map(function(d){var n=noteAt(d.s,d.f);return {s:d.s,f:d.f,c:mark(n),l:NAMES[n]};});
+  return fretboardSvg(dots,null,Math.max(4,hi-from),from);
+}
+function posOptions(cur,first){
+  var o=first;
+  for(var i=0;i<5;i++)o+='<option value="'+i+'"'+(cur===i?' selected':'')+'>Position '+(i+1)+'</option>';
+  return o;
+}
 // Zieht reihum ohne Wiederholung: Jede Möglichkeit kommt einmal dran, erst dann wird neu gemischt.
 // Auch über die Mischgrenze hinweg kommt nie zweimal direkt hintereinander dasselbe (außer es gibt nur eine Möglichkeit).
 var bags={};
@@ -623,7 +656,15 @@ function newScaleQ(kind){
     var pickc=fit[bagPick('sname-combo-'+t+'-'+ans,fit.map(function(c,i){return i;}))];
     q.root=pickc.r;q.k=pickc.k;q.picked=null;
   }
-  if(kind==='play'){q.seq=set.concat([root]);q.idx=0;}
+  if(kind==='play'){
+    // Startton: Grundton oder ein anderer Ton der Tonleiter (reihum); Richtung: 0 auf, 1 ab, 2 auf und ab
+    var st=state.sStart?bagPick('splay-start-'+set.length,set.map(function(x,i){return i;})):0;
+    var up=set.slice(st).concat(set.slice(0,st)).concat([set[st]]),down=up.slice().reverse();
+    q.start=set[st];q.dir=state.sDir;
+    q.seq=state.sDir===1?down:state.sDir===2?up.concat(down.slice(1)):up;
+    q.pos=state.sPos===5?bagPick('splay-pos',[0,1,2,3,4]):state.sPos;
+    q.idx=0;
+  }
   state.q=q;
 }
 function newForMode(){
@@ -664,28 +705,30 @@ function fretboard(dots,band,frets,head){
   var svg=fretboardSvg(dots,band,frets);
   return frets?'<div class="stickyfb">'+(head||'')+svg+'</div>':svg;
 }
-function fretboardSvg(dots,band,frets){
+// from = Bund, ab dem das Griffbrett gezeigt wird (0 = ab Sattel); so lassen sich höhere Lagen als Ausschnitt zeigen
+function fretboardSvg(dots,band,frets,from){
+  from=from||0;
   var N=frets||state.maxFret,H=TOP+FH*N+14,o='',i;
   var I=INSTR[state.inst],gap=I.gap,x0=XS[0]-28,x1=XS[STR.length-1]+28; // Griffbrett reicht 28 px über die äußeren Saiten hinaus
   o+='<svg class="fb-svg" viewBox="0 0 320 '+H+'" role="img" aria-label="Griffbrett: '+I.name+'">';
   o+='<rect x="'+x0+'" y="'+TOP+'" width="'+(x1-x0)+'" height="'+(FH*N)+'" rx="2" fill="var(--card)" stroke="var(--line)" stroke-width="0.5"/>';
   if(band!==null&&band!==undefined)o+='<rect x="'+(XS[band]-gap/2)+'" y="'+(TOP-48)+'" width="'+gap+'" height="'+(FH*N+48)+'" fill="var(--openbg)" opacity="0.55" rx="6"/>';
   for(var m in I.marks){
-    if(+m>N)continue;
-    var cy=TOP+FH*(m-0.5),xs=I.marks[m]===1?[170]:[(XS[I.dbl[0][0]]+XS[I.dbl[0][1]])/2,(XS[I.dbl[1][0]]+XS[I.dbl[1][1]])/2];
+    if(+m>N+from||+m<=from)continue;
+    var cy=TOP+FH*(m-from-0.5),xs=I.marks[m]===1?[170]:[(XS[I.dbl[0][0]]+XS[I.dbl[0][1]])/2,(XS[I.dbl[1][0]]+XS[I.dbl[1][1]])/2];
     for(i=0;i<xs.length;i++)o+='<circle cx="'+xs[i]+'" cy="'+cy+'" r="5" fill="var(--line)"/>';
   }
   for(i=1;i<=N;i++)o+='<line x1="'+x0+'" x2="'+x1+'" y1="'+(TOP+FH*i)+'" y2="'+(TOP+FH*i)+'" stroke="var(--line)" stroke-width="0.75"/>';
-  o+='<line x1="'+x0+'" x2="'+x1+'" y1="'+TOP+'" y2="'+TOP+'" stroke="var(--muted)" stroke-width="3"/>';
+  o+='<line x1="'+x0+'" x2="'+x1+'" y1="'+TOP+'" y2="'+TOP+'" stroke="var(--muted)" stroke-width="'+(from?1:3)+'"/>';
   for(i=0;i<STR.length;i++){
     o+='<line x1="'+XS[i]+'" x2="'+XS[i]+'" y1="'+TOP+'" y2="'+(TOP+FH*N)+'" stroke="var(--muted)" stroke-width="'+(1+0.4*(STR.length-1-i))+'"/>';
     o+='<text x="'+XS[i]+'" y="11" text-anchor="middle" font-size="12" fill="var(--muted)">'+STR[i].n+'</text>';
   }
-  for(i=1;i<=N;i++)o+='<text x="26" y="'+(TOP+FH*(i-0.5)+4)+'" text-anchor="middle" font-size="12" fill="var(--muted)">'+i+'</text>';
-  for(i=0;i<dots.length;i++)o+=dotSvg(dots[i].s,dots[i].f,dots[i].c,dots[i].l);
+  for(i=1;i<=N;i++)o+='<text x="26" y="'+(TOP+FH*(i-0.5)+4)+'" text-anchor="middle" font-size="12" fill="var(--muted)">'+(i+from)+'</text>';
+  for(i=0;i<dots.length;i++)o+=dotSvg(dots[i].s,dots[i].f-from,dots[i].c,dots[i].l);
   for(var s=0;s<STR.length;s++)for(var f=0;f<=N;f++){
     var y=f===0?20:TOP+FH*(f-1),h=f===0?42:FH;
-    o+='<rect class="hit" data-act="tap" data-s="'+s+'" data-f="'+f+'" x="'+(XS[s]-gap/2)+'" y="'+y+'" width="'+gap+'" height="'+h+'"/>';
+    o+='<rect class="hit" data-act="tap" data-s="'+s+'" data-f="'+(f?f+from:0)+'" x="'+(XS[s]-gap/2)+'" y="'+y+'" width="'+gap+'" height="'+h+'"/>';
   }
   return o+'</svg>';
 }
@@ -1357,13 +1400,16 @@ function scalePick(){
   return o+'</select></label></div>';
 }
 function viewScaleMap(){
-  var sc=SCALES[state.sType],root=state.sRoot,set=scaleNotes(root,sc),dots=[];
+  var sc=SCALES[state.sType],root=state.sRoot,set=scaleNotes(root,sc),dots=[],pos=state.mPos;
+  var mark=function(n){return n===root?'open':'nat';};
+  var sel='<div class="sel"><label>Position <select data-act="mpos"><option value="-1"'+(pos<0?' selected':'')+'>Alle Töne</option>'+posOptions(pos,'')+'</select></label></div>';
+  var o=(pos<0?controls(true):'')+scaleSelects()+sel;
+  o+='<div class="card">'+titleRow(scaleName(root,sc),'splayall','Tonleiter anhören')+'<p class="hint" style="margin:4px 0 0">Töne: '+set.map(function(n){return NAMES[n];}).join(' ')+' · lila = Grundton</p></div>';
+  if(pos>=0)return o+boxBoard(root,sc,pos,mark);
   for(var s=0;s<STR.length;s++)for(var f=0;f<=state.maxFret;f++){
     var n=noteAt(s,f);
-    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:n===root?'open':'nat',l:NAMES[n]});
+    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:mark(n),l:NAMES[n]});
   }
-  var o=controls(true)+scaleSelects();
-  o+='<div class="card">'+titleRow(scaleName(root,sc),'splayall','Tonleiter anhören')+'<p class="hint" style="margin:4px 0 0">Töne: '+set.map(function(n){return NAMES[n];}).join(' ')+' · lila = Grundton</p></div>';
   return o+fretboard(dots,null);
 }
 function viewScaleFind(){
@@ -1404,6 +1450,16 @@ function viewScaleName(){
 function viewScalePlay(){
   if(!state.q)newScaleQ('play');
   var q=state.q,sc=SCALES[q.t],mic=state.mic,fb='',btn='',live='';
+  var dirTxt=['aufwärts','abwärts','auf und ab'][q.dir||0];
+  var title='Spiele '+scaleName(q.root,sc)+(q.start!==undefined&&q.start!==q.root?' ab '+NAMES[q.start]:'')+' '+dirTxt+(q.pos>=0?' · Position '+(q.pos+1):'');
+  var opts='<div class="sel"><label><select data-act="sdir">'+['Aufwärts','Abwärts','Auf und ab'].map(function(x,i){return '<option value="'+i+'"'+(state.sDir===i?' selected':'')+'>'+x+'</option>';}).join('')+'</select></label>'+
+    '<label><select data-act="sstart"><option value="0"'+(state.sStart?'':' selected')+'>Ab Grundton</option><option value="1"'+(state.sStart?' selected':'')+'>Ab wechselndem Ton</option></select></label>'+
+    '<label><select data-act="spos"><option value="-1"'+(state.sPos<0?' selected':'')+'>Position frei</option>'+posOptions(state.sPos,'')+'<option value="5"'+(state.sPos===5?' selected':'')+'>Position wechselnd</option></select></label></div>';
+  var board='';
+  if(q.pos>=0){
+    var cur=q.done?-1:q.seq[q.idx];
+    board=boxBoard(q.root,sc,q.pos,function(n){return n===cur?'open':'nat';})+'<p class="hint" style="margin:4px 0 0">lila = nächster Ton. Die App hört den Ton, nicht die Saite: Greife ihn in der gezeigten Position.</p>';
+  }
   var seq='<div class="seq">'+q.seq.map(function(n,i){
     return '<span class="'+(i<q.idx?'done':(i===q.idx&&!q.done?'cur':''))+'">'+NAMES[n]+'</span>';
   }).join('')+'</div>';
@@ -1412,10 +1468,10 @@ function viewScalePlay(){
     else{fb='<p class="fb bad">Die Töne: '+q.seq.map(function(n){return NAMES[n];}).join(' ')+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
   }else if(mic.on){
     live='<p class="fb">Ich höre: <b id="live">–</b></p><p style="margin:8px 0 0"><button class="btn" data-act="skip">Überspringen</button></p>';
-  }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon und spiele die Töne nacheinander, beginnend beim Grundton. In welcher Oktave du spielst, ist egal.</p>';
+  }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon und spiele die Töne nacheinander in der gezeigten Reihenfolge. In welcher Oktave du spielst, ist egal.</p>';
   var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
   if(mic.err)m+=micErrCard();
-  return m+scalePick()+score()+'<div class="card"><p class="prompt">Spiele '+scaleName(q.root,sc)+' aufwärts</p>'+seq+(live||fb)+(live?'':btn)+'</div>';
+  return m+scalePick()+opts+score()+'<div class="card"><p class="prompt">'+title+'</p>'+seq+(live||fb)+(live?'':btn)+'</div>'+board;
 }
 
 // ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
@@ -1632,7 +1688,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='sdir'||a==='sstart'||a==='spos'||a==='mpos')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -1643,6 +1699,10 @@ root.addEventListener('change',function(e){
   else if(a==='sharps'){state.sharps=el.checked;state.q=null;state.last=null;render();}
   else if(a==='awake'){state.awake=el.checked;try{localStorage.setItem('griffbrett-awake',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}keepAwake();render();}
   else if(a==='sound'){state.sound=el.checked;try{localStorage.setItem('griffbrett-sound',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}}
+  else if(a==='sdir'){state.sDir=+el.value;state.q=null;render();}
+  else if(a==='sstart'){state.sStart=+el.value;state.q=null;render();}
+  else if(a==='spos'){state.sPos=+el.value;state.q=null;render();}
+  else if(a==='mpos'){state.mPos=+el.value;render();}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}

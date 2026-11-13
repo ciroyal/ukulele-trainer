@@ -360,6 +360,32 @@ try:
         check('Tonleitern ohne Zwischentöne-Schalter', cnt == [0, 0, 0] and pg.locator('select[data-act="range"]').count() == 1 and 'alle 12' in pg.inner_text('select[data-act="proot"]'), str(cnt))
         rr = pg.evaluate("(function(){var o={};[-1,-2].forEach(function(p){state.pRoot=p;state.pType=0;state.mode='sfind';var u={};for(var i=0;i<60;i++){newForMode();u[state.q.root]=1;}o[p]=Object.keys(u).length;});state.pRoot=-1;state.pType=-1;return [o[-1],o[-2]];})()")
         check('Grundton zufällig: 7 Stammtöne oder alle 12', rr == [7, 12], str(rr))
+        # Positionen und Varianten beim Tonleiter-Spielen
+        BOX = "(function(r,t,p){return STR.map(function(x,s){return scaleBox(r,SCALES[t],p).filter(function(d){return d.s===s}).map(function(d){return d.f}).join(',')}).join(' ')})"
+        pg.evaluate("useInstrument('gtr')")
+        b1 = pg.evaluate(BOX + "(9,3,2)"); b2 = pg.evaluate(BOX + "(0,0,3)")
+        check('Position: A-Moll-Pentatonik 5. Bund (Gitarre)', b1 == '5,8 5,7 5,7 5,7 5,8 5,8', b1)
+        check('Position: C-Dur 7. Bund (Gitarre)', b2 == '7,8,10 7,8,10 7,9,10 7,9,10 8,10 7,8,10', b2)
+        badbox = pg.evaluate("""(function(){var bad=[];['uke','gtr'].forEach(function(id){useInstrument(id);for(var r=0;r<12;r++)SCALES.forEach(function(sc){for(var p=0;p<5;p++){var bx=scaleBox(r,sc,p),set=scaleNotes(r,sc),u={},lo=99,hi=0;bx.forEach(function(d){u[noteAt(d.s,d.f)]=1;if(set.indexOf(noteAt(d.s,d.f))<0)bad.push('fremd');lo=Math.min(lo,d.f);hi=Math.max(hi,d.f);});if(Object.keys(u).length!==set.length||hi-lo>5)bad.push(id+r+sc.id+p);for(var s=0;s<STR.length;s++){var c=bx.filter(function(d){return d.s===s}).length;if(c<2||c>3)bad.push(id+r+sc.id+p+'s'+s);}}});});useInstrument('uke');return bad;})()""")
+        check('Alle Positionen: vollständig, nur Tonleitertöne, höchstens 5 Bünde, 2-3 Töne je Saite', badbox == [], str(badbox[:5]))
+        go(pg, 'smap')
+        pg.select_option('select[data-act="mpos"]', '2')
+        lab = pg.evaluate("[].map.call(document.querySelectorAll('.fb-svg .hit'),function(e){return +e.getAttribute('data-f')}).filter(function(f){return f>0}).sort(function(a,b){return a-b})")
+        check('Tonleiterkarte: Position zeigt Ausschnitt ab Bund 4', lab[0] == 4 and pg.locator('.dot').count() == 12, str(lab[:3]))
+        pg.select_option('select[data-act="mpos"]', '-1')
+        go(pg, 'splay')
+        pg.select_option('select[data-act="proot"]', '0'); pg.select_option('select[data-act="ptype"]', '0')
+        seqs = []
+        for d in ['0', '1', '2']:
+            pg.select_option('select[data-act="sdir"]', d); seqs.append(pg.evaluate("state.q.seq.join(' ')"))
+        check('Spielen: auf, ab, auf und ab', seqs == ['0 2 4 5 7 9 11 0', '0 11 9 7 5 4 2 0', '0 2 4 5 7 9 11 0 11 9 7 5 4 2 0'], str(seqs))
+        pg.select_option('select[data-act="sdir"]', '0'); pg.select_option('select[data-act="sstart"]', '1')
+        st = pg.evaluate("(function(){var u={},ok=true;for(var i=0;i<14;i++){newForMode();var q=state.q;u[q.start]=1;if(q.seq[0]!==q.start||q.seq[q.seq.length-1]!==q.start||q.seq.length!==8)ok=false;}return [Object.keys(u).length,ok];})()")
+        check('Spielen: Start auf wechselndem Ton', st == [7, True], str(st))
+        pg.select_option('select[data-act="spos"]', '1')
+        check('Spielen: Position zeigt Griffbrett und Titel', pg.locator('.fb-svg').count() == 1 and 'Position 2' in pg.inner_text('.card .prompt >> nth=-1'), pg.inner_text('#root')[-200:])
+        pg.select_option('select[data-act="spos"]', '-1'); pg.select_option('select[data-act="sstart"]', '0')
+        pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         # Keine gleiche Aufgabe direkt hintereinander
         REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
         r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.s})")
