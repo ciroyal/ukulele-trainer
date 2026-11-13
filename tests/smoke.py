@@ -352,6 +352,14 @@ try:
         check('Sprache: Dreiklang bauen', pg.evaluate("state.q.done&&state.q.ok"), pg.evaluate("JSON.stringify(state.q.sel)"))
         go(pg, 'find')
         check('Kein Sprechen-Knopf bei Finden', pg.locator('[data-act="voice"]').count() == 0)
+        # Tonleitern: kein Schalter für Zwischentöne, Grundton-Auswahl stattdessen im Menü
+        cnt = []
+        for m in ['smap', 'sfind', 'sname']:
+            go(pg, m); cnt.append(pg.locator('input[data-act="sharps"]').count())
+        go(pg, 'sfind')
+        check('Tonleitern ohne Zwischentöne-Schalter', cnt == [0, 0, 0] and pg.locator('select[data-act="range"]').count() == 1 and 'alle 12' in pg.inner_text('select[data-act="proot"]'), str(cnt))
+        rr = pg.evaluate("(function(){var o={};[-1,-2].forEach(function(p){state.pRoot=p;state.pType=0;state.mode='sfind';var u={};for(var i=0;i<60;i++){newForMode();u[state.q.root]=1;}o[p]=Object.keys(u).length;});state.pRoot=-1;state.pType=-1;return [o[-1],o[-2]];})()")
+        check('Grundton zufällig: 7 Stammtöne oder alle 12', rr == [7, 12], str(rr))
         # Keine gleiche Aufgabe direkt hintereinander
         REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
         r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.s})")
