@@ -358,6 +358,8 @@ try:
         r2 = pg.evaluate(REP + "('sfind',function(){state.pRoot=-1;state.pType=-1},function(q){return q.s})")
         r3 = pg.evaluate(REP + "('sname',function(){state.pRoot=0;state.pType=0},function(q){return q.k})")
         r4 = pg.evaluate(REP + "('splay',function(){state.pRoot=-1;state.pType=-1},function(q){return q.root+':'+q.t})")
+        r5 = pg.evaluate("(function(){state.pRoot=-1;state.pType=-1;state.mode='sname';var all=[],mx=0;for(var i=0;i<300;i++){newForMode();var q=state.q;all.push(scaleNotes(q.root,SCALES[q.t])[q.k-1]);}for(var i=0;i+10<=all.length;i++){var c={};all.slice(i,i+10).forEach(function(x){c[x]=(c[x]||0)+1;});for(var k in c)if(c[k]>mx)mx=c[k];}return mx;})()")
+        check('Tonleitern erkennen: derselbe Ton höchstens 2-mal in 10 Aufgaben', r5 <= 2, str(r5))
         pg.evaluate("state.pRoot=-1;state.pType=-1;state.q=null;state.mode='path';render()")
         check('Tonleiter-Übungen: nie dieselbe Saite/Aufgabe direkt hintereinander', r1 == 0 and r2 == 0 and r3 == 0 and r4 == 0, str((r1, r2, r3, r4)))
         # Runden und Bewertung

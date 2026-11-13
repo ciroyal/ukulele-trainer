@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.55';
+var VERSION='1.56';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -583,6 +583,7 @@ function newChordQ(){
 // Zieht reihum ohne Wiederholung: Jede Möglichkeit kommt einmal dran, erst dann wird neu gemischt.
 // Auch über die Mischgrenze hinweg kommt nie zweimal direkt hintereinander dasselbe (außer es gibt nur eine Möglichkeit).
 var bags={};
+var ansSeen={},ansClock=0; // wann welcher Ton zuletzt die Antwort bei "Tonleitern erkennen" war
 function bagPick(name,list){
   var sig=list.join(','),b=bags[name];
   if(!b||b.sig!==sig||!b.left.length){
@@ -608,7 +609,19 @@ function newScaleQ(kind){
     q.s=bagPick('sfind-str',ok);q.targets=per[q.s];
     q.found=[];q.miss=0;q.bad=null;
   }
-  if(kind==='name'){var ks=[];for(var k=2;k<=set.length;k++)ks.push(k);q.k=bagPick('sname-k',ks);q.picked=null;}
+  if(kind==='name'){
+    // Der gesuchte Ton (die Antwort) soll wechseln: alle möglichen Antworten kommen reihum dran,
+    // dazu wird eine passende Kombination aus Grundton und Stufe gewählt.
+    var rs=state.pRoot>=0?[state.pRoot]:roots,combos=[],answers=[];
+    rs.forEach(function(r){var sn=scaleNotes(r,SCALES[t]);for(var k=2;k<=sn.length;k++){combos.push({r:r,k:k,a:sn[k-1]});if(answers.indexOf(sn[k-1])<0)answers.push(sn[k-1]);}});
+    // zufällig einen Ton aus der Hälfte nehmen, die am längsten nicht die Antwort war; das gilt auch, wenn die Tonleiter-Art wechselt
+    answers.sort(function(x,y){return (ansSeen[x]||0)-(ansSeen[y]||0)||Math.random()-0.5;});
+    var cand=answers.slice(0,Math.max(1,Math.ceil(answers.length/2)));
+    var ans=cand[Math.floor(Math.random()*cand.length)],fit=combos.filter(function(c){return c.a===ans;});
+    ansSeen[ans]=++ansClock;
+    var pickc=fit[bagPick('sname-combo-'+t+'-'+ans,fit.map(function(c,i){return i;}))];
+    q.root=pickc.r;q.k=pickc.k;q.picked=null;
+  }
   if(kind==='play'){q.seq=set.concat([root]);q.idx=0;}
   state.q=q;
 }
