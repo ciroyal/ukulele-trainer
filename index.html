@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.54';
+var VERSION='1.55';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -580,23 +580,35 @@ function newChordQ(){
   var i=weighted(chordsInKey().inKey,'chords',function(k){return cs[k].n;});
   state.q={i:i,fing:STR.map(function(){return 0;}),done:false,ok:false,picked:null,id:Date.now()};
 }
+// Zieht reihum ohne Wiederholung: Jede Möglichkeit kommt einmal dran, erst dann wird neu gemischt.
+// Auch über die Mischgrenze hinweg kommt nie zweimal direkt hintereinander dasselbe (außer es gibt nur eine Möglichkeit).
+var bags={};
+function bagPick(name,list){
+  var sig=list.join(','),b=bags[name];
+  if(!b||b.sig!==sig||!b.left.length){
+    var last=b&&b.sig===sig?b.last:null,left=list.slice(),i,j,x;
+    for(i=left.length-1;i>0;i--){j=Math.floor(Math.random()*(i+1));x=left[i];left[i]=left[j];left[j]=x;}
+    if(left.length>1&&left[left.length-1]===last){x=left[0];left[0]=left[left.length-1];left[left.length-1]=x;}
+    b=bags[name]={sig:sig,left:left,last:last};
+  }
+  b.last=b.left.pop();
+  return b.last;
+}
 // kind: 'find' (Töne auf einer Saite antippen), 'name' (Stufe benennen), 'play' (mit dem Mikrofon spielen)
 function newScaleQ(kind){
   var roots=state.sharps?[0,1,2,3,4,5,6,7,8,9,10,11]:[0,2,4,5,7,9,11];
   var t=state.pType>=0?state.pType:SCALES.indexOf(weighted(SCALES,'scales',function(s){return s.id;}));
-  var root=state.pRoot>=0?state.pRoot:roots[Math.floor(Math.random()*roots.length)],set=scaleNotes(root,SCALES[t]);
+  var root=state.pRoot>=0?state.pRoot:bagPick('sroot-'+kind,roots),set=scaleNotes(root,SCALES[t]);
   var q={kind:kind,root:root,t:t,done:false,ok:false,id:Date.now()};
   if(kind==='find'){
-    // Saite wählen, auf der im gewählten Bereich mindestens zwei Töne der Tonleiter liegen
-    for(var tries=0;tries<50;tries++){
-      var s=Math.floor(Math.random()*STR.length),targets=[];
-      for(var f=0;f<=state.maxFret;f++)if(set.indexOf(noteAt(s,f))>=0)targets.push(f);
-      q.s=s;q.targets=targets;
-      if(targets.length>=2)break;
-    }
+    // Saiten, auf denen im gewählten Bereich mindestens zwei Töne der Tonleiter liegen; sie kommen reihum dran
+    var per=STR.map(function(x,s){var tg=[];for(var f=0;f<=state.maxFret;f++)if(set.indexOf(noteAt(s,f))>=0)tg.push(f);return tg;});
+    var ok=[];per.forEach(function(tg,s){if(tg.length>=2)ok.push(s);});
+    if(!ok.length)ok=STR.map(function(x,s){return s;});
+    q.s=bagPick('sfind-str',ok);q.targets=per[q.s];
     q.found=[];q.miss=0;q.bad=null;
   }
-  if(kind==='name'){q.k=2+Math.floor(Math.random()*(set.length-1));q.picked=null;}
+  if(kind==='name'){var ks=[];for(var k=2;k<=set.length;k++)ks.push(k);q.k=bagPick('sname-k',ks);q.picked=null;}
   if(kind==='play'){q.seq=set.concat([root]);q.idx=0;}
   state.q=q;
 }

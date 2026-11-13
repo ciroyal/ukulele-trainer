@@ -352,6 +352,14 @@ try:
         check('Sprache: Dreiklang bauen', pg.evaluate("state.q.done&&state.q.ok"), pg.evaluate("JSON.stringify(state.q.sel)"))
         go(pg, 'find')
         check('Kein Sprechen-Knopf bei Finden', pg.locator('[data-act="voice"]').count() == 0)
+        # Keine gleiche Aufgabe direkt hintereinander
+        REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
+        r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.s})")
+        r2 = pg.evaluate(REP + "('sfind',function(){state.pRoot=-1;state.pType=-1},function(q){return q.s})")
+        r3 = pg.evaluate(REP + "('sname',function(){state.pRoot=0;state.pType=0},function(q){return q.k})")
+        r4 = pg.evaluate(REP + "('splay',function(){state.pRoot=-1;state.pType=-1},function(q){return q.root+':'+q.t})")
+        pg.evaluate("state.pRoot=-1;state.pType=-1;state.q=null;state.mode='path';render()")
+        check('Tonleiter-Übungen: nie dieselbe Saite/Aufgabe direkt hintereinander', r1 == 0 and r2 == 0 and r3 == 0 and r4 == 0, str((r1, r2, r3, r4)))
         # Runden und Bewertung
         go(pg, 'find')
         check('Übung zeigt Rundenkarte mit Schwellen', 'Runde · 60 s' in pg.inner_text('#root') and '★★ ab 12' in pg.inner_text('#root'))
