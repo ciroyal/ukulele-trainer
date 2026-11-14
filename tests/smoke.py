@@ -451,7 +451,7 @@ try:
         tx = pg.inner_text('#root')
         check('Theorie: Die 5 Positionen mit fünf Griffbildern', 'Die 5 Positionen' in tx and pg.locator('.theory .fb-svg').count() == 5 and 'tiefsten Saite (C-Saite)' in tx)
         check('Theorie: Tonleiter als Leiter mit Stufen', 'Jeder Ton ist eine Sprosse' in tx and '8. Stufe' in tx and pg.locator('.theory svg text:text-is("1. Stufe")').count() == 1 and pg.locator('.theory svg text:text-is("Halb")').count() == 6 and 'schwarzen Tasten' in tx)
-        check('Theorie Tonleitern', 'Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb' in tx and 'C-Dur: C D E F G A H C' in tx and 'A-Moll: A H C D E F G A' in tx and 'C-Dur-Pentatonik ist C D E G A' in tx and 'A-Moll-Pentatonik ist A C D E G' in tx, tx[:200])
+        check('Theorie Tonleitern', 'Muster:' not in tx and 'Zahlen = Stufen' not in tx and 'C-Dur: C D E F G A H C' in tx and 'A-Moll: A H C D E F G A' in tx and 'C-Dur-Pentatonik ist C D E G A' in tx and 'A-Moll-Pentatonik ist A C D E G' in tx, tx[:200])
         go(pg, 'tchords')
         tx = pg.inner_text('#root')
         check('Theorie Akkorde', 'In C-Dur: I C, ii Dm, iii Em, IV F, V G, vi Am, vii° H°' in tx and 'In A-Moll: i Am, ii° H°, III C, iv Dm, v Em, VI F, VII G' in tx and 'G7 in C-Dur ist G H D F' in tx, tx[:200])

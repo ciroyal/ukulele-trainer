@@ -155,7 +155,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.68';
+var VERSION='1.69';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1180,14 +1180,12 @@ function viewTheoryScales(){
     'Die Sprossen sind nicht gleich weit auseinander: Ein Ganzton ist ein großer Schritt, ein Halbton ein kleiner. Dieses Muster aus großen und kleinen Schritten macht die Tonleiter aus.',
     'Grundton plus Tonleiter-Art ergibt die Tonart, zum Beispiel C-Dur.'],ladderSvg(cmaj,[2,2,1,2,2,2,1])+'<p class="hint" style="margin:2px 0 0;text-align:center">C-Dur als Leiter · lila = Grundton</p>')+
   theoryCard('Dur',[
-    'Muster: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb.',
     'Die kleinen Schritte liegen zwischen der 3. und 4. und zwischen der 7. und 8. Stufe.',
     'Auf dem Klavier sind alle weißen Tasten gleich breit. Den Unterschied siehst du an den schwarzen Tasten: Bei einem Ganzton liegt eine dazwischen, bei einem Halbton nicht.',
-    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.','<span class="hint">Die Klaviatur zeigt nur den Aufbau. Warum ein Klavier und nicht das Griffbrett, steht unter Töne → Theorie.</span>'],ladderKeysSvg(0,[2,2,1,2,2,2,1])+'<p class="hint" style="margin:4px 0 0">Die Leiter quer über den Tasten · Zahlen = Stufen</p>')+
+    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.','<span class="hint">Die Klaviatur zeigt nur den Aufbau. Warum ein Klavier und nicht das Griffbrett, steht unter Töne → Theorie.</span>'],ladderKeysSvg(0,[2,2,1,2,2,2,1]))+
   theoryCard('Moll (natürlich)',[
-    'Muster: Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz.',
     'Die kleinen Schritte liegen zwischen der 2. und 3. und zwischen der 5. und 6. Stufe. Das macht den dunkleren Klang.',
-    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],ladderKeysSvg(5,[2,1,2,2,1,2,2])+'<p class="hint" style="margin:4px 0 0">Die Leiter quer über den Tasten · Zahlen = Stufen</p>')+
+    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],ladderKeysSvg(5,[2,1,2,2,1,2,2]))+
   theoryCard('Parallele Tonart',[
     'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'],pianoSvg(cmaj)+'<p class="hint" style="margin:4px 0 0">Dieselben weißen Tasten: C-Dur beginnt auf C, A-Moll auf A.</p>')+
   theoryCard('Pentatonik',[
