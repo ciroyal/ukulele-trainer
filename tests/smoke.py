@@ -450,6 +450,7 @@ try:
         go(pg, 'tscales')
         tx = pg.inner_text('#root')
         check('Theorie: Die 5 Positionen mit fünf Griffbildern', 'Die 5 Positionen' in tx and pg.locator('.theory .fb-svg').count() == 5 and 'tiefsten Saite (C-Saite)' in tx)
+        check('Theorie: Tonleiter als Leiter mit Stufen', 'Jeder Ton ist eine Sprosse' in tx and '8. Stufe' in tx and pg.locator('.theory svg text:text-is("1. Stufe")').count() == 3)
         check('Theorie Tonleitern', 'Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb' in tx and 'C-Dur: C D E F G A H C' in tx and 'A-Moll: A H C D E F G A' in tx and 'C-Dur-Pentatonik ist C D E G A' in tx and 'A-Moll-Pentatonik ist A C D E G' in tx, tx[:200])
         go(pg, 'tchords')
         tx = pg.inner_text('#root')
