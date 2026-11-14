@@ -357,7 +357,7 @@ try:
         for m in ['smap', 'sfind', 'sname']:
             go(pg, m); cnt.append(pg.locator('input[data-act="sharps"]').count())
         go(pg, 'sfind')
-        check('Tonleitern ohne Zwischentöne-Schalter', cnt == [0, 0, 0] and pg.locator('select[data-act="range"]').count() == 1 and 'alle 12' in pg.inner_text('select[data-act="proot"]'), str(cnt))
+        check('Tonleitern ohne Zwischentöne-Schalter', cnt == [0, 0, 0] and pg.locator('select[data-act="range"]').count() == 0 and 'alle 12' in pg.inner_text('select[data-act="proot"]'), str(cnt))
         rr = pg.evaluate("(function(){var o={};[-1,-2].forEach(function(p){state.pRoot=p;state.pType=0;state.mode='sfind';var u={};for(var i=0;i<60;i++){newForMode();u[state.q.root]=1;}o[p]=Object.keys(u).length;});state.pRoot=-1;state.pType=-1;return [o[-1],o[-2]];})()")
         check('Grundton zufällig: 7 Stammtöne oder alle 12', rr == [7, 12], str(rr))
         # Positionen und Varianten beim Tonleiter-Spielen
@@ -398,8 +398,8 @@ try:
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         # Keine gleiche Aufgabe direkt hintereinander
         REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
-        r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.s})")
-        r2 = pg.evaluate(REP + "('sfind',function(){state.pRoot=-1;state.pType=-1},function(q){return q.s})")
+        r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.pos})")
+        r2 = pg.evaluate(REP + "('sfind',function(){state.pRoot=-1;state.pType=-1},function(q){return q.pos})")
         r3 = pg.evaluate(REP + "('sname',function(){state.pRoot=0;state.pType=0},function(q){return q.k})")
         r4 = pg.evaluate(REP + "('splay',function(){state.pRoot=-1;state.pType=-1},function(q){return q.root+':'+q.t})")
         r5 = pg.evaluate("(function(){state.pRoot=-1;state.pType=-1;state.mode='sname';var all=[],mx=0;for(var i=0;i<300;i++){newForMode();var q=state.q;all.push(scaleNotes(q.root,SCALES[q.t])[q.k-1]);}for(var i=0;i+10<=all.length;i++){var c={};all.slice(i,i+10).forEach(function(x){c[x]=(c[x]||0)+1;});for(var k in c)if(c[k]>mx)mx=c[k];}return mx;})()")
@@ -458,16 +458,26 @@ try:
         pg.click('.stickyfb .play')
         check('Stufen: Play-Knopf im Griffbrett', pg.evaluate("window.__seq") == 4 and 'Anschlagen' not in pg.inner_text('#root'))
         go(pg, 'sfind')
-        pg.evaluate("state.q={kind:'find',root:0,t:0,s:1,targets:[0,2,4,5],found:[],miss:0,bad:null,done:false,ok:false,id:31};render()")  # C-Dur auf der C-Saite
-        pg.click('rect.hit[data-s="1"][data-f="1"]')
+        pg.select_option('select[data-act="proot"]', '0'); pg.select_option('select[data-act="ptype"]', '0'); pg.select_option('select[data-act="fpos"]', '1')
+        tg = pg.evaluate("state.q.targets.join(' ')")
+        check('Tonleiter finden: alle Töne von Position 2', tg == '0:2 0:4 0:5 1:2 1:4 1:5 2:3 2:5 3:2 3:3 3:5' and 'in Position 2' in pg.inner_text('#root'), tg)
+        pg.click('rect.hit[data-s="2"][data-f="4"]')
         check('Tonleiter finden: Fehlversuch', pg.evaluate("state.q.miss===1&&!state.q.done"))
-        for f in (0, 2, 4, 5):
-            pg.click(f'rect.hit[data-s="1"][data-f="{f}"]')
+        for k in tg.split(' '):
+            a, f = k.split(':'); pg.click(f'rect.hit[data-s="{a}"][data-f="{f}"]')
         check('Tonleiter finden: alle gefunden, aber mit Fehler', pg.evaluate("state.q.done&&!state.q.ok"))
-        pg.evaluate("state.q={kind:'find',root:0,t:0,s:1,targets:[0,2,4,5],found:[],miss:0,bad:null,done:false,ok:false,id:32};render()")
-        for f in (0, 2, 4, 5):
-            pg.click(f'rect.hit[data-s="1"][data-f="{f}"]')
+        pg.evaluate("next()")
+        for k in pg.evaluate("state.q.targets"):
+            a, f = k.split(':'); pg.click(f'rect.hit[data-s="{a}"][data-f="{f}"]')
         check('Tonleiter finden: fehlerfrei richtig', pg.evaluate("state.q.ok===true&&stats.scales.maj.c>=1"))
+        pg.evaluate("next()"); pg.click('[data-act="rstart"]')
+        ks = pg.evaluate("state.q.targets")
+        for k in ks[:3]:
+            a, f = k.split(':'); pg.click(f'rect.hit[data-s="{a}"][data-f="{f}"]')
+        pg.click('rect.hit[data-s="2"][data-f="4"]')
+        check('Tonleiter finden: Runde zählt Töne (3 richtig, 1 falsch)', pg.evaluate("state.round.ok") == 3 and pg.evaluate("state.round.total") == 4, str(pg.evaluate("[state.round.ok,state.round.total]")))
+        pg.click('[data-act="rstop"]')
+        pg.select_option('select[data-act="fpos"]', '-1'); pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
         go(pg, 'sname')
         pg.select_option('select[data-act="proot"]', '9'); pg.select_option('select[data-act="ptype"]', '1')   # A-Moll festlegen
         picks = [pg.evaluate("(newScaleQ('name'),state.q.root+'/'+state.q.t)") for _ in range(8)]

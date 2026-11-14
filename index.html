@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.61';
+var VERSION='1.62';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -221,7 +221,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={lv:{},mPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={lv:{},mPos:-1,fPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},gx:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig (pRoot -2 = zufällig aus allen 12 Grundtönen)
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -649,11 +649,9 @@ function newScaleQ(kind){
   var root=state.pRoot>=0?state.pRoot:bagPick('sroot-'+kind,roots),set=scaleNotes(root,SCALES[t]);
   var q={kind:kind,root:root,t:t,done:false,ok:false,id:Date.now()};
   if(kind==='find'){
-    // Saiten, auf denen im gewählten Bereich mindestens zwei Töne der Tonleiter liegen; sie kommen reihum dran
-    var per=STR.map(function(x,s){var tg=[];for(var f=0;f<=state.maxFret;f++)if(set.indexOf(noteAt(s,f))>=0)tg.push(f);return tg;});
-    var ok=[];per.forEach(function(tg,s){if(tg.length>=2)ok.push(s);});
-    if(!ok.length)ok=STR.map(function(x,s){return s;});
-    q.s=bagPick('sfind-str',ok);q.targets=per[q.s];
+    // Gesucht sind alle Töne einer Position; die Positionen kommen reihum dran (oder die fest gewählte)
+    q.pos=state.fPos>=0?state.fPos:bagPick('sfind-pos',[0,1,2,3,4]);
+    q.targets=scaleBox(root,SCALES[t],q.pos).map(function(d){return d.s+':'+d.f;});
     q.found=[];q.miss=0;q.bad=null;
   }
   if(kind==='name'){
@@ -703,7 +701,9 @@ function record(key,ok,bucket){
   if(ok){st.c++;stats.correct++;state.streak++;if(state.streak>stats.best)stats.best=state.streak;}
   else state.streak=0;
   // Läuft eine Runde, zählt die Antwort dort mit; falsche Antworten springen von selbst weiter
-  if(state.round&&state.round.mode===state.mode&&!(isSP(state.mode)&&ok)){state.round.total++;if(ok)state.round.ok++;else if(state.q)autoAdvance(state.q,state.mode,1200);}
+  // Übungen, die in der Runde einzelne Töne zählen (Spielen, Tonleiter finden), zählen hier nur das Aufgeben als Fehler
+  var own=isSP(state.mode)||state.mode==='sfind';
+  if(state.round&&state.round.mode===state.mode&&!(own&&ok)){if(!own||isSP(state.mode)||(state.q&&state.q.gaveUp))state.round.total++;if(ok)state.round.ok++;else if(state.q)autoAdvance(state.q,state.mode,1200);}
   save();
 }
 
@@ -743,7 +743,7 @@ function fretboardSvg(dots,band,frets,from){
   }
   for(i=1;i<=N;i++)o+='<text x="26" y="'+(TOP+FH*(i-0.5)+4)+'" text-anchor="middle" font-size="12" fill="var(--muted)">'+(i+from)+'</text>';
   for(i=0;i<dots.length;i++)o+=dotSvg(dots[i].s,dots[i].f-from,dots[i].c,dots[i].l);
-  for(var s=0;s<STR.length;s++)for(var f=0;f<=N;f++){
+  for(var s=0;s<STR.length;s++)for(var f=from?1:0;f<=N;f++){
     var y=f===0?20:TOP+FH*(f-1),h=f===0?42:FH;
     o+='<rect class="hit" data-act="tap" data-s="'+s+'" data-f="'+(f?f+from:0)+'" x="'+(XS[s]-gap/2)+'" y="'+y+'" width="'+gap+'" height="'+h+'"/>';
   }
@@ -1343,7 +1343,7 @@ function voiceBar(){
 // Ein Schritt ist geschafft, wenn jede seiner Übungen mindestens PASS_STARS Sterne hat.
 var ROUND_SEC=60,PASS_STARS=2,roundTimer=null;
 // richtige Antworten pro Minute für 1, 2 und 3 Sterne
-var RATING={find:[8,12,16],name:[12,17,23],sfind:[3,4,6],sname:[9,13,18],splay:[25,40,55],splay2:[25,40,55],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
+var RATING={find:[8,12,16],name:[12,17,23],sfind:[20,30,40],sname:[9,13,18],splay:[25,40,55],splay2:[25,40,55],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
 function starsFor(mode,ok,total){
   if(!total||ok/total<0.8)return 0;
   var s=0;RATING[mode].forEach(function(x){if(ok>=x)s++;});return s;
@@ -1393,7 +1393,7 @@ function roundBar(){
   }
   var o='<div class="card"><div class="rtop"><div><b>Runde · '+ROUND_SEC+' s</b><div class="hint" style="margin:2px 0 0">'+(b?'Beste: '+starText(b.stars)+' ('+b.ok+' richtig)':'Noch keine Runde')+'</div></div><button class="btn pri" data-act="rstart">Starten</button></div>';
   if(res&&res.mode===m)o+='<p class="fb '+(res.stars>=PASS_STARS?'ok':'bad')+'" style="margin:8px 0 0">'+starText(res.stars)+' · '+res.ok+' richtig, '+(res.total-res.ok)+' falsch'+(res.stars>=PASS_STARS?' – Ziel erreicht!':' – Ziel: '+PASS_STARS+' Sterne')+'</p>';
-  return o+'<p class="hint" style="margin:8px 0 0">★ ab '+th[0]+' · ★★ ab '+th[1]+' · ★★★ ab '+th[2]+' '+(isSP(m)?'richtig gespielte Töne':'richtige Antworten')+' pro Runde, mindestens 80 % richtig.</p></div>';
+  return o+'<p class="hint" style="margin:8px 0 0">★ ab '+th[0]+' · ★★ ab '+th[1]+' · ★★★ ab '+th[2]+' '+(isSP(m)?'richtig gespielte Töne':m==='sfind'?'richtig gefundene Töne':'richtige Antworten')+' pro Runde, mindestens 80 % richtig.</p></div>';
 }
 
 // ----- Lernpfad: Töne → Tonleitern → Akkorde -----
@@ -1454,21 +1454,26 @@ function viewScaleMap(){
 }
 function viewScaleFind(){
   if(!state.q)newScaleQ('find');
-  var q=state.q,sc=SCALES[q.t],dots=[],fb='',btn='';
-  q.found.forEach(function(f){dots.push({s:q.s,f:f,c:'ok',l:NAMES[noteAt(q.s,f)]});});
+  var q=state.q,sc=SCALES[q.t],dots=[],fb='',btn='',lo=99,hi=0;
+  function dot(key,c){var p=key.split(':'),s=+p[0],f=+p[1];dots.push({s:s,f:f,c:c,l:NAMES[noteAt(s,f)]});}
+  q.targets.forEach(function(k){var f=+k.split(':')[1];if(f<lo)lo=f;if(f>hi)hi=f;});
+  q.found.forEach(function(k){dot(k,'ok');});
   if(q.done){
-    q.targets.forEach(function(f){if(q.found.indexOf(f)<0)dots.push({s:q.s,f:f,c:'ok',l:NAMES[noteAt(q.s,f)]});});
+    q.targets.forEach(function(k){if(q.found.indexOf(k)<0)dot(k,'ok');});
     if(q.ok)fb='<p class="fb ok">Richtig!</p>';
     else{
       fb='<p class="fb bad">'+(q.gaveUp?'So liegen die Töne.':'Alle gefunden, aber mit '+q.miss+' Fehlversuch'+(q.miss===1?'':'en')+'.')+'</p>';
       btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';
     }
   }else{
-    if(q.bad!==null)dots.push({s:q.s,f:q.bad,c:'bad',l:NAMES[noteAt(q.s,q.bad)]});
+    if(q.bad)dot(q.bad,'bad');
     fb='<p class="fb">Gefunden '+q.found.length+' von '+q.targets.length+(q.miss?' · Fehlversuche '+q.miss:'')+'</p>';
     btn='<p style="margin:8px 0 0"><button class="btn" data-act="sgive">Zeigen</button></p>';
   }
-  return controls(true)+scalePick()+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' auf der '+STR[q.s].label+'</p>'+fb+btn+'</div>'+fretboard(dots,q.s);
+  // Ausschnitt: die Position plus ein Bund Rand darüber und darunter
+  var from=lo>1?lo-2:0,N=Math.max(5,hi+1-from);
+  var sel='<div class="sel"><label>Position <select data-act="fpos"><option value="-1"'+(state.fPos<0?' selected':'')+'>wechselnd</option>'+posOptions(state.fPos,'')+'</select></label></div>';
+  return scalePick()+sel+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' in Position '+(q.pos+1)+'</p>'+fb+btn+'</div>'+fretboardSvg(dots,null,N,from);
 }
 function viewScaleName(){
   if(!state.q)newScaleQ('name');
@@ -1681,18 +1686,20 @@ function handle(el){
       else{q.fing[s]=q.fing[s]===f?0:f;play(s,f);}
       render();
     }
-    else if(m==='sfind'&&q&&!q.done&&s===q.s){
+    else if(m==='sfind'&&q&&!q.done){
       play(s,f);
-      if(q.found.indexOf(f)<0){
-        if(q.targets.indexOf(f)>=0){
-          q.found.push(f);q.bad=null;
+      var key=s+':'+f,inRound=state.round&&state.round.mode===m;
+      if(q.found.indexOf(key)<0){
+        if(q.targets.indexOf(key)>=0){
+          q.found.push(key);q.bad=null;
+          if(inRound){state.round.ok++;state.round.total++;} // in der Runde zählt jeder gefundene Ton
           if(q.found.length===q.targets.length){
             q.done=true;q.ok=(q.miss===0);
             record(SCALES[q.t].id,q.ok,'scales');render();
             if(q.ok)autoAdvance(q,'sfind',1200);
             return;
           }
-        }else{q.miss++;q.bad=f;}
+        }else{q.miss++;q.bad=key;if(inRound)state.round.total++;}
       }
       render();
     }
@@ -1736,7 +1743,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='slevel'||a==='mpos')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='slevel'||a==='mpos'||a==='fpos')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -1749,6 +1756,7 @@ root.addEventListener('change',function(e){
   else if(a==='sound'){state.sound=el.checked;try{localStorage.setItem('griffbrett-sound',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}}
   else if(a==='slevel'){state.lv[state.mode]=+el.value;state.q=null;cancelRound();state.roundResult=null;render();}
   else if(a==='mpos'){state.mPos=+el.value;render();}
+  else if(a==='fpos'){state.fPos=+el.value;state.q=null;render();}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
