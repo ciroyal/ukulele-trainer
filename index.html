@@ -167,7 +167,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.75';
+var VERSION='1.76';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -685,7 +685,8 @@ function newScaleQ(kind){
   if(kind==='find'){
     // Gesucht sind alle Töne einer Position; die Positionen kommen reihum dran (oder die fest gewählte)
     q.pos=state.fPos>=0?state.fPos:bagPick('sfind-pos',[0,1,2,3,4]);
-    q.targets=scaleBox(root,SCALES[t],q.pos).map(function(d){return d.s+':'+d.f;});
+    // Bei hohem G zählen die (doppelten) Töne auf der G-Saite nicht: Die Saite bleibt leer und Tippen darauf wird ignoriert
+    q.targets=scaleBox(root,SCALES[t],q.pos).filter(function(d){return !dupCls(d.s);}).map(function(d){return d.s+':'+d.f;});
     q.found=[];q.miss=0;q.bad=null;
   }
   if(kind==='name'){
@@ -1610,7 +1611,7 @@ function viewScaleFind(){
   // Ausschnitt: die Position plus ein Bund Rand darüber und darunter
   var from=lo>1?lo-2:0,N=Math.max(5,hi+1-from);
   var sel='<div class="sel"><label>Position <select data-act="fpos"><option value="-1"'+(state.fPos<0?' selected':'')+'>wechselnd</option>'+posOptions(state.fPos,'')+'</select></label></div>';
-  return scalePick()+sel+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' in Position '+(q.pos+1)+'</p>'+fb+btn+'</div>'+fretboardSvg(dots,null,N,from);
+  return scalePick()+sel+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' in Position '+(q.pos+1)+'</p>'+fb+btn+(reentrant()?'<p class="hint" style="margin:8px 0 0">Die G-Saite zählt nicht: Ihre Töne liegen auch auf den anderen Saiten.</p>':'')+'</div>'+fretboardSvg(dots,null,N,from);
 }
 function viewScaleName(){
   if(!state.q)newScaleQ('name');
@@ -1862,6 +1863,7 @@ function handle(el){
     else if(m==='sfind'&&q&&!q.done){
       play(s,f);
       var key=s+':'+f,inRound=state.round&&state.round.mode===m;
+      if(dupCls(s)){render();return;} // G-Saite bei hohem G: zählt nicht, weder richtig noch falsch
       if(q.found.indexOf(key)<0){
         if(q.targets.indexOf(key)>=0){
           q.found.push(key);q.bad=null;
