@@ -155,7 +155,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.69';
+var VERSION='1.70';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1056,6 +1056,22 @@ function pianoSvg(hl){
     o+=svgTxt(x+10,on?23:48,NOTES[pc].replace('is','♯'),{s:9,c:'#fff'});}
   return svgWrap(7*W+2,96,o);
 }
+// Klaviatur über eine Oktave, die beim Grundton beginnt und endet (8 weiße Tasten ab der weißen Taste start, 0 = C … 5 = A).
+// hl = hervorgehobene Töne; der Grundton ist lila. So sieht man, wo eine Tonleiter anfängt.
+function pianoFromSvg(hl,start){
+  var WP=[0,2,4,5,7,9,11],black=[1,1,0,1,1,1,0],W=34,o='',k,wi,pc,on,root=WP[start];
+  for(k=0;k<8;k++){
+    wi=(start+k)%7;pc=WP[wi];on=hl.indexOf(pc)>=0;
+    o+='<rect x="'+(k*W+1)+'" y="1" width="'+(W-2)+'" height="92" rx="3" fill="#fff" stroke="#8a8880"/>';
+    if(on)o+='<circle cx="'+(k*W+W/2)+'" cy="70" r="11" fill="'+(pc===root?'#534AB7':'#0F6E56')+'"/>';
+    o+=svgTxt(k*W+W/2,on?74:86,NOTES[pc],{s:12,c:on?'#fff':'#5F5E5A',b:on});
+  }
+  for(k=0;k<7;k++){
+    wi=(start+k)%7;
+    if(black[wi])o+='<rect x="'+((k+1)*W-10)+'" y="1" width="20" height="56" rx="3" fill="#1f1e1d"/>'+svgTxt((k+1)*W,48,NOTES[WP[wi]+1].replace('is','♯'),{s:9,c:'#fff'});
+  }
+  return svgWrap(8*W+2,96,o);
+}
 // Bundleiste einer Saite: leer bis 12. Bund
 function fretStripSvg(openPc){
   var W=26,o='',i;
@@ -1190,7 +1206,7 @@ function viewTheoryScales(){
     'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'],pianoSvg(cmaj)+'<p class="hint" style="margin:4px 0 0">Dieselben weißen Tasten: C-Dur beginnt auf C, A-Moll auf A.</p>')+
   theoryCard('Pentatonik',[
     'Fünf Töne statt sieben, ohne Halbtonschritte. Dur-Pentatonik lässt die 4. und 7. Stufe weg: C-Dur-Pentatonik ist '+noteList(cp)+'.',
-    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur-Pentatonik</p>'+pianoSvg(cp)+'<p class="hint" style="margin:8px 0 4px">A-Moll-Pentatonik</p>'+pianoSvg(ap))+
+    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur-Pentatonik · beginnt bei C</p>'+pianoFromSvg(cp,0)+'<p class="hint" style="margin:8px 0 4px">A-Moll-Pentatonik · beginnt bei A</p>'+pianoFromSvg(ap,5)+'<p class="hint" style="margin:4px 0 0">lila = Grundton. Beide haben dieselben fünf Töne, nur der Grundton ist ein anderer.</p>')+
   theoryPositions();
 }
 function viewTheoryChords(){
