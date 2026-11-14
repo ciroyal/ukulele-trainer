@@ -417,6 +417,21 @@ try:
         check('Wechselton hat eigene Stufen', pg.evaluate("curLevel('splay2')") == 1 and 'Wechselton' in pg.inner_text('.tabs.ex'))
         pg.evaluate("stats.levels={};stats.rounds={};state.lv={};state.levelUp=null;save()")
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
+        # Ukulele mit tiefem G
+        pg.click('[data-act="settings"]'); pg.click('[data-act="ukeg"][data-v="low"]')
+        lg = pg.evaluate("[STR[0].m,STR[0].f,INSTR.uke.tuning,INSTR.uke.lowHz,state.inst]")
+        check('Tiefes G: G-Saite eine Oktave tiefer, Anzeige angepasst', lg == [55, 196, 'G–C–E–A (tiefes G)', 170, 'uke'] and 'tiefes G' in pg.inner_text('.head'), str(lg))
+        hz = pg.evaluate("(function(){var sr=44100,b=new Float32Array(2048);for(var i=0;i<b.length;i++)b[i]=Math.sin(2*Math.PI*196*i/sr);return detect(b,sr,INSTR.uke.lowHz);})()")
+        check('Tiefes G: Tonerkennung findet 196 Hz', hz is not None and abs(hz - 196) < 2, str(hz))
+        bx = pg.evaluate("STR.map(function(x,s){return scaleBox(0,SCALES[0],0).filter(function(d){return d.s===s}).map(function(d){return d.f}).join(',')}).join(' ')")
+        check('Tiefes G: Positionen gehen von der G-Saite aus (C-Dur Position 1)', bx == '0,2 0,2 0,1,3 0,2,3' and pg.evaluate("scaleBox(0,SCALES[0],1).filter(function(d){return d.s===0}).map(function(d){return d.f}).join(',')") == '2,4,5', bx)
+        chk2 = pg.evaluate("INSTR.uke.chords.filter(function(c){var want=c.q==='m'?[0,3,7]:c.q==='dim'?[0,3,6]:c.q==='7'?[0,4,7,10]:[0,4,7];return c.f.some(function(f,s){return f>=0&&want.indexOf(((noteAt(s,f)-c.r)%12+12)%12)<0;});}).length")
+        check('Tiefes G: Akkordgriffe enthalten weiter nur Akkordtöne', chk2 == 0, str(chk2))
+        pg.reload()
+        pg.evaluate("(function(){window.__seq=0;var o=window.playSeq;window.playSeq=function(f,m){window.__seq=f.length;return o(f,m)}})()")
+        check('Tiefes G bleibt nach Neuladen', pg.evaluate("state.lowG===true&&STR[0].m===55"))
+        pg.click('[data-act="settings"]'); pg.click('[data-act="ukeg"][data-v="high"]'); pg.click('[data-act="settings"]')
+        check('Zurück auf hohes G', pg.evaluate("STR[0].m===67&&INSTR.uke.tuning.indexOf('hohes')>0&&INSTR.uke.lowHz===200"))
         # Keine gleiche Aufgabe direkt hintereinander
         REP = "(function(mode,setup,key){setup();state.mode=mode;var prev=null,rep=0;for(var i=0;i<300;i++){newForMode();var k=key(state.q);if(k===prev)rep++;prev=k;}return rep;})"
         r1 = pg.evaluate(REP + "('sfind',function(){state.pRoot=0;state.pType=0},function(q){return q.pos})")
