@@ -155,7 +155,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.67';
+var VERSION='1.68';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1138,6 +1138,24 @@ function ladderSvg(pcs,steps){
   });
   return '<div style="max-width:300px;margin:0 auto">'+svgWrap(300,H,o)+'</div>';
 }
+// Leiter quer über der Klaviatur: jede Sprosse (Stufe 1 bis 8) zeigt auf ihre weiße Taste. start = erste weiße Taste (0 = C … 5 = A).
+// Auf dem Klavier sind die Tasten gleich breit; Ganz und Halb erkennt man daran, ob eine schwarze Taste dazwischenliegt.
+function ladderKeysSvg(start,steps){
+  var WP=[0,2,4,5,7,9,11],black=[1,1,0,1,1,1,0],W=41,o='',LY=44,KY=92,KH=96,k,wi,x;
+  [LY-18,LY+18].forEach(function(y){o+='<line x1="6" x2="'+(8*W-4)+'" y1="'+y+'" y2="'+y+'" stroke="#8a6a3a" stroke-width="5" stroke-linecap="round"/>';});
+  for(k=0;k<8;k++){
+    wi=(start+k)%7;x=k*W+W/2;
+    var c=k===0||k===7?'open':'accent';
+    o+='<rect x="'+(k*W+1)+'" y="'+KY+'" width="'+(W-2)+'" height="'+KH+'" rx="3" fill="#fff" stroke="#8a8880"/>'+
+      '<line x1="'+x+'" x2="'+x+'" y1="'+(LY+24)+'" y2="'+(KY+KH-34)+'" stroke="var(--'+c+')" stroke-dasharray="3 3"/>'+
+      '<line x1="'+x+'" x2="'+x+'" y1="'+(LY-18)+'" y2="'+(LY+18)+'" stroke="var(--'+c+')" stroke-width="5" stroke-linecap="round"/>'+
+      '<circle cx="'+x+'" cy="'+LY+'" r="10" fill="var(--'+c+'bg)" stroke="var(--'+c+')"/>'+svgTxt(x,LY+4.5,String(k+1),{s:12,c:'var(--'+c+'Text)',b:1})+
+      '<circle cx="'+x+'" cy="'+(KY+KH-20)+'" r="11" fill="'+(c==='open'?'#534AB7':'#0F6E56')+'"/>'+svgTxt(x,KY+KH-15.5,NOTES[WP[wi]],{s:12,c:'#fff',b:1});
+    if(k<7)o+=svgTxt(x+W/2,14,steps[k]===1?'Halb':'Ganz',{s:10.5,c:steps[k]===1?'var(--badText)':'var(--accentText)',b:1});
+  }
+  for(k=0;k<7;k++)if(black[(start+k)%7])o+='<rect x="'+((k+1)*W-12)+'" y="'+KY+'" width="24" height="56" rx="3" fill="#1f1e1d"/>';
+  return svgWrap(8*W,KY+KH+4,o);
+}
 // Die fünf Positionen am Beispiel C-Dur auf dem gewählten Instrument, als kleine Griffbrett-Ausschnitte
 function theoryPositions(){
   var I=INSTR[state.inst],sc=SCALES[0],ref=0,g='<div style="display:grid;gap:14px;max-width:270px;margin:0 auto">';
@@ -1164,11 +1182,12 @@ function viewTheoryScales(){
   theoryCard('Dur',[
     'Muster: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb.',
     'Die kleinen Schritte liegen zwischen der 3. und 4. und zwischen der 7. und 8. Stufe.',
-    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.','<span class="hint">Die Klaviatur zeigt nur den Aufbau. Warum ein Klavier und nicht das Griffbrett, steht unter Töne → Theorie.</span>'],ladderSvg(cmaj,[2,2,1,2,2,2,1])+pianoSvg(cmaj))+
+    'Auf dem Klavier sind alle weißen Tasten gleich breit. Den Unterschied siehst du an den schwarzen Tasten: Bei einem Ganzton liegt eine dazwischen, bei einem Halbton nicht.',
+    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.','<span class="hint">Die Klaviatur zeigt nur den Aufbau. Warum ein Klavier und nicht das Griffbrett, steht unter Töne → Theorie.</span>'],ladderKeysSvg(0,[2,2,1,2,2,2,1])+'<p class="hint" style="margin:4px 0 0">Die Leiter quer über den Tasten · Zahlen = Stufen</p>')+
   theoryCard('Moll (natürlich)',[
     'Muster: Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz.',
     'Die kleinen Schritte liegen zwischen der 2. und 3. und zwischen der 5. und 6. Stufe. Das macht den dunkleren Klang.',
-    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],ladderSvg(amin,[2,1,2,2,1,2,2])+pianoSvg(amin))+
+    'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],ladderKeysSvg(5,[2,1,2,2,1,2,2])+'<p class="hint" style="margin:4px 0 0">Die Leiter quer über den Tasten · Zahlen = Stufen</p>')+
   theoryCard('Parallele Tonart',[
     'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'],pianoSvg(cmaj)+'<p class="hint" style="margin:4px 0 0">Dieselben weißen Tasten: C-Dur beginnt auf C, A-Moll auf A.</p>')+
   theoryCard('Pentatonik',[
