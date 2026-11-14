@@ -155,7 +155,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.65';
+var VERSION='1.66';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1474,7 +1474,8 @@ function viewPath(){
       o+='<button class="strow'+(st===nx?' cur':'')+(d?' done':'')+'" data-act="tab" data-v="'+st[1]+'"><span class="stnum">'+(d?'✓':(PATH.indexOf(st)+1))+'</span>'+
          '<span class="stname">'+modeLabel(st[1])+(st[3]?' <small>mit Mikrofon</small>':'')+'</span><span class="ststat">'+(ex?starText(roundStars(st[1])):(d?'angesehen':'offen'))+'</span></button>';
     });
-    o+='</div></div>';
+    // TEMPORÄR zum Testen: setzt Haken, Sterne und Stufen dieses Schritts zurück (wieder entfernen)
+    o+='</div><p style="margin:10px 0 0"><button class="btn" data-act="stepreset" data-v="'+i+'" style="font-size:13px;padding:6px 10px">Schritt '+(i+1)+' zurücksetzen (Test)</button></p></div>';
   });
   return o+'<p class="hint">Der Lernweg führt dich der Reihe nach durch Lesen, Ansehen und Üben. Du kannst jede Station auch direkt antippen.</p>';
 }
@@ -1667,6 +1668,17 @@ function handle(el){
   }
   else if(act==='next'){next();}
   else if(act==='voice'){voice.on=!voice.on;voice.err='';voice.heard='';voice.retried=false;render();}
+  else if(act==='stepreset'){
+    // TEMPORÄR zum Testen: Fortschritt eines Schritts im Lernweg löschen (die Trefferquoten in der Statistik bleiben)
+    PATH.forEach(function(st){
+      if(st[0]!==+v)return;
+      if(stats.seen)delete stats.seen[st[1]];
+      if(stats.rounds)delete stats.rounds[st[1]];
+      if(stats.levels)delete stats.levels[st[1]];
+      delete state.lv[st[1]];
+    });
+    state.roundResult=null;state.levelUp=null;save();render();
+  }
   else if(act==='rstart'){startRound();}
   else if(act==='rstop'){cancelRound();state.roundResult=null;render();}
   else if(act==='settings'){state.settings=!state.settings;render();}
