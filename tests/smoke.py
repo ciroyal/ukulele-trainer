@@ -417,6 +417,9 @@ try:
         check('Wechselton hat eigene Stufen', pg.evaluate("curLevel('splay2')") == 1 and 'Wechselton' in pg.inner_text('.tabs.ex'))
         pg.evaluate("stats.levels={};stats.rounds={};state.lv={};state.levelUp=null;save()")
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
+        go(pg, 'smap')
+        nd = pg.locator('.dot.dup').count()
+        check('Hohes G: Töne auf der G-Saite blass (Position 1: 2 von 10)', nd == 2 and 'blass' in pg.inner_text('#root'), str(nd))
         # Ukulele mit tiefem G
         pg.click('[data-act="settings"]'); pg.click('[data-act="ukeg"][data-v="low"]')
         lg = pg.evaluate("[STR[0].m,STR[0].f,INSTR.uke.tuning,INSTR.uke.lowHz,state.inst]")
@@ -429,6 +432,8 @@ try:
         check('Tiefes G: Akkordgriffe enthalten weiter nur Akkordtöne', chk2 == 0, str(chk2))
         pg.reload()
         pg.evaluate("(function(){window.__seq=0;var o=window.playSeq;window.playSeq=function(f,m){window.__seq=f.length;return o(f,m)}})()")
+        go(pg, 'smap')
+        check('Tiefes G: keine blassen Töne', pg.locator('.dot.dup').count() == 0 and 'blass' not in pg.inner_text('#root'))
         check('Tiefes G bleibt nach Neuladen', pg.evaluate("state.lowG===true&&STR[0].m===55"))
         pg.click('[data-act="settings"]'); pg.click('[data-act="ukeg"][data-v="high"]'); pg.click('[data-act="settings"]')
         check('Zurück auf hohes G', pg.evaluate("STR[0].m===67&&INSTR.uke.tuning.indexOf('hohes')>0&&INSTR.uke.lowHz===200"))

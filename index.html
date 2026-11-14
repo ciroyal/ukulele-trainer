@@ -146,6 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 .stname small{color:var(--muted);font-size:12px}
 .stage:not(.next){border-left:none}
 .guide{margin-top:12px}
+.dot.dup{opacity:.4}
 </style>
 </head>
 <body>
@@ -155,7 +156,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.72';
+var VERSION='1.73';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -619,12 +620,17 @@ function scaleBox(root,sc,p){
   }
   return out;
 }
+// Bei der Ukulele mit hohem G liegt die G-Saite klanglich mitten zwischen den anderen: Ihre Tonleitertöne gibt es auf den
+// Nachbarsaiten noch einmal. Sie werden deshalb blass gezeichnet ("geht auch hier"). dupCls(s) liefert die Zusatzklasse dafür.
+function reentrant(){return STR.length>1&&STR[0].m>STR[1].m;}
+function dupCls(s){return reentrant()&&s===0?' dup':'';}
+function dupHint(){return reentrant()?' · blass = derselbe Ton liegt auch auf einer anderen Saite':'';}
 // Griffbrett-Ausschnitt für eine Position; mark(n) liefert die Farbklasse eines Tons
 function boxBoard(root,sc,p,mark){
   var box=scaleBox(root,sc,p),lo=99,hi=0;
   box.forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
   var from=lo>0?lo-1:0;
-  var dots=box.map(function(d){var n=noteAt(d.s,d.f);return {s:d.s,f:d.f,c:mark(n),l:NAMES[n]};});
+  var dots=box.map(function(d){var n=noteAt(d.s,d.f);return {s:d.s,f:d.f,c:mark(n)+dupCls(d.s),l:NAMES[n]};});
   return fretboardSvg(dots,null,Math.max(4,hi-from),from);
 }
 // ----- Tonleiter spielen: zwei Übungen mit Stufen -----
@@ -1189,7 +1195,7 @@ function theoryPositions(){
     var lo=99,hi=0;scaleBox(0,sc,p).forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
     g+='<div><p class="hint" style="margin:0 0 2px"><b>Position '+(p+1)+'</b> · Bund '+lo+'–'+hi+'</p>'+boxBoard(0,sc,p,function(n){return n===0?'open':'nat';})+'</div>';
   }
-  g+='</div><p class="hint" style="margin:6px 0 0">C-Dur auf der '+I.name+' · lila = Grundton C</p>';
+  g+='</div><p class="hint" style="margin:6px 0 0">C-Dur auf der '+I.name+' · lila = Grundton C'+dupHint()+'</p>';
   return theoryCard('Die 5 Positionen',[
     'Die Töne einer Tonleiter liegen über das ganze Griffbrett verteilt. Damit man sie greifen kann, teilt man sie in fünf Positionen. Jede ist etwa vier bis fünf Bünde breit und hat zwei bis drei Töne pro Saite, sodass die Hand an einer Stelle bleiben kann.',
     'Woher die fünf kommen: Auf der tiefsten Saite ('+STR[ref].n+'-Saite) liegen die fünf Töne der Pentatonik. Bei jedem davon beginnt eine Position. Dur und Moll ergänzen dann nur die zwei fehlenden Töne.',
@@ -1559,11 +1565,11 @@ function viewScaleMap(){
   [0,1,2,3,4,-1].forEach(function(p){sel+='<button class="btn'+(pos===p?' on':'')+'" data-act="mposb" data-v="'+p+'">'+(p<0?'Alle':p+1)+'</button>';});
   sel+='</div>';
   var o=scaleSelects()+sel;
-  o+='<div class="card">'+titleRow(scaleName(root,sc),'splayall',pos<0?'Tonleiter anhören':'Position anhören')+'<p class="hint" style="margin:4px 0 0">Töne: '+set.map(function(n){return NAMES[n];}).join(' ')+' · lila = Grundton</p></div>';
+  o+='<div class="card">'+titleRow(scaleName(root,sc),'splayall',pos<0?'Tonleiter anhören':'Position anhören')+'<p class="hint" style="margin:4px 0 0">Töne: '+set.map(function(n){return NAMES[n];}).join(' ')+' · lila = Grundton'+dupHint()+'</p></div>';
   if(pos>=0)return o+boxBoard(root,sc,pos,mark);
   for(var s=0;s<STR.length;s++)for(var f=0;f<=12;f++){
     var n=noteAt(s,f);
-    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:mark(n),l:NAMES[n]});
+    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:mark(n)+dupCls(s),l:NAMES[n]});
   }
   return o+fretboardSvg(dots,null,12);
 }
@@ -1611,7 +1617,7 @@ function viewScaleName(){
   var from=lo>0?lo-1:0;
   var dots=box.map(function(d){
     var nn=noteAt(d.s,d.f),tg=d.s===q.s&&d.f===q.f;
-    return {s:d.s,f:d.f,c:tg?(q.done?(q.ok?'ok':'bad'):'q'):(nn===q.root?'nat':'sharp'),l:tg?(q.done?NAMES[nn]:'?'):(nn===q.root?NAMES[nn]:'')};
+    return {s:d.s,f:d.f,c:tg?(q.done?(q.ok?'ok':'bad'):'q'):(nn===q.root?'nat':'sharp')+dupCls(d.s),l:tg?(q.done?NAMES[nn]:'?'):(nn===q.root?NAMES[nn]:'')};
   });
   return scalePick()+'<div class="card"><p class="prompt">Der wievielte Ton von '+scaleName(q.root,sc)+' ist der markierte Ton?</p>'+fb+btn+'</div>'+a+
     '<p class="hint" style="margin:-4px 0 8px">Grün = Grundton (1. Ton) · grau = die anderen Töne der Position '+(q.pos+1)+'</p>'+fretboardSvg(dots,null,Math.max(4,hi-from),from);
@@ -1629,8 +1635,8 @@ function viewScalePlay(){
     var reg=levelRegion(q.root,sc,q.level),lo=99,hi=0,cur=q.done?-1:q.mseq[q.idx];
     reg.forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
     var from=lo>0?lo-1:0;
-    board=fretboardSvg(reg.map(function(d){var n=noteAt(d.s,d.f);return {s:d.s,f:d.f,c:STR[d.s].m+d.f===cur?'open':'nat',l:NAMES[n]};}),null,Math.max(4,hi-from),from)+
-      '<p class="hint" style="margin:4px 0 0">lila = nächster Ton. Die App hört den Ton, nicht die Saite oder Oktave.</p>';
+    board=fretboardSvg(reg.map(function(d){var n=noteAt(d.s,d.f);return {s:d.s,f:d.f,c:(STR[d.s].m+d.f===cur?'open':'nat')+dupCls(d.s),l:NAMES[n]};}),null,Math.max(4,hi-from),from)+
+      '<p class="hint" style="margin:4px 0 0">lila = nächster Ton'+dupHint()+'. Die App hört den Ton, nicht die Saite oder Oktave.</p>';
     var nx=q.done?'':NAMES[q.seq[q.idx]],dirUp=q.idx+1<q.mseq.length?q.mseq[q.idx+1]>q.mseq[q.idx]:false;
     seq='<div class="rtop" style="margin-top:8px"><span>'+(q.done?'Fertig':'Nächster Ton: <b style="font-size:20px">'+nx+'</b> '+(q.idx+1<q.mseq.length?(dirUp?'↑':'↓'):''))+'</span><span class="hint">'+Math.min(q.idx+1,q.seq.length)+' von '+q.seq.length+'</span></div>'+
       '<div class="bar" style="margin:8px 0 0"><i style="width:'+(100*q.idx/q.seq.length)+'%"></i></div>';
