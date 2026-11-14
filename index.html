@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.60';
+var VERSION='1.61';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1121,6 +1121,22 @@ function viewTheoryNotes(){
   theoryCard('Die Saiten ('+I.name+')',[
     'Leere Saiten: '+open+'. Jeder Bund darüber ist einen Halbton höher. Aus den leeren Saiten kannst du also jeden Ton abzählen.'],'<p class="hint" style="margin:0 0 4px">'+I.strings[0].label+', Bund für Bund:</p>'+fretStripSvg(I.strings[0].m%12));
 }
+// Die fünf Positionen am Beispiel C-Dur auf dem gewählten Instrument, als kleine Griffbrett-Ausschnitte
+function theoryPositions(){
+  var I=INSTR[state.inst],sc=SCALES[0],ref=0,g='<div style="display:grid;gap:14px;max-width:270px;margin:0 auto">';
+  for(var s=1;s<STR.length;s++)if(STR[s].m<STR[ref].m)ref=s;
+  for(var p=0;p<5;p++){
+    var lo=99,hi=0;scaleBox(0,sc,p).forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
+    g+='<div><p class="hint" style="margin:0 0 2px"><b>Position '+(p+1)+'</b> · Bund '+lo+'–'+hi+'</p>'+boxBoard(0,sc,p,function(n){return n===0?'open':'nat';})+'</div>';
+  }
+  g+='</div><p class="hint" style="margin:6px 0 0">C-Dur auf der '+I.name+' · lila = Grundton C</p>';
+  return theoryCard('Die 5 Positionen',[
+    'Die Töne einer Tonleiter liegen über das ganze Griffbrett verteilt. Damit man sie greifen kann, teilt man sie in fünf Positionen. Jede ist etwa vier bis fünf Bünde breit und hat zwei bis drei Töne pro Saite, sodass die Hand an einer Stelle bleiben kann.',
+    'Woher die fünf kommen: Auf der tiefsten Saite ('+STR[ref].n+'-Saite) liegen die fünf Töne der Pentatonik. Bei jedem davon beginnt eine Position. Dur und Moll ergänzen dann nur die zwei fehlenden Töne.',
+    'Die Positionen überlappen sich: Die oberen Töne der einen sind die unteren der nächsten. Nach Position 5 folgt wieder Position 1, zwölf Bünde höher und eine Oktave höher im Klang.',
+    'Die Griffbilder gelten für jede Tonart. Für D-Dur rutscht alles zwei Bünde höher. Welche Position dann am Sattel liegt und Nummer 1 trägt, ändert sich dabei.',
+    'In der App: Unter „Karte“ wählst du eine Position zum Ansehen. Unter „Üben“ spielst du bei „Ab Grundton“ und „Wechselton“ erst Position 1 und schaltest dann Position 1–2 bis 1–5 frei.'],g);
+}
 function viewTheoryScales(){
   var cmaj=scaleNotes(0,SCALES[0]),amin=scaleNotes(9,SCALES[1]);
   var cp=scaleNotes(0,SCALES[2]),ap=scaleNotes(9,SCALES[3]);
@@ -1136,7 +1152,8 @@ function viewTheoryScales(){
     'A-Moll hat dieselben Töne wie C-Dur, nur beginnt es auf dem 6. Ton. Solche Tonarten heißen parallel. Deshalb passen die Akkorde von C-Dur auch zu A-Moll.'],pianoSvg(cmaj)+'<p class="hint" style="margin:4px 0 0">Dieselben weißen Tasten: C-Dur beginnt auf C, A-Moll auf A.</p>')+
   theoryCard('Pentatonik',[
     'Fünf Töne statt sieben, ohne Halbtonschritte. Dur-Pentatonik lässt die 4. und 7. Stufe weg: C-Dur-Pentatonik ist '+noteList(cp)+'.',
-    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur-Pentatonik</p>'+pianoSvg(cp)+'<p class="hint" style="margin:8px 0 4px">A-Moll-Pentatonik</p>'+pianoSvg(ap));
+    'Moll-Pentatonik lässt die 2. und 6. Stufe weg: A-Moll-Pentatonik ist '+noteList(ap)+'.'],'<p class="hint" style="margin:0 0 4px">C-Dur-Pentatonik</p>'+pianoSvg(cp)+'<p class="hint" style="margin:8px 0 4px">A-Moll-Pentatonik</p>'+pianoSvg(ap))+
+  theoryPositions();
 }
 function viewTheoryChords(){
   var cd=[0,1,2,3,4,5,6].map(function(d){return triadAt(0,0,d);}),am=[0,1,2,3,4,5,6].map(function(d){return triadAt(9,1,d);});
