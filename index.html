@@ -167,7 +167,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.74';
+var VERSION='1.75';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1536,7 +1536,7 @@ function viewPath(){
   if(!nx)o+='<div class="card"><p class="fb ok" style="margin:0">Alles geschafft! Du kannst jede Station weiter üben.</p></div>';
   STEPS.forEach(function(s,i){
     var sts=PATH.filter(function(st){return st[0]===i;}),need=sts.filter(function(st){return !st[3];}),n=need.filter(stationDone).length,done=stepDone(i);
-    o+='<div class="stephead"><span class="steptag">Schritt '+(i+1)+'</span><span class="steptitle">'+s.title+'</span><span class="stepline"></span><span class="hint">'+(done?'Geschafft ✓':n+' von '+need.length)+'</span></div>';
+    o+='<div class="stephead"><span class="steptag">Schritt '+(i+1)+'</span><span class="steptitle">'+s.title+'</span><span class="stepline"></span><span class="hint">'+(done?'Geschafft ✓ · ':'')+sts.filter(stationDone).length+' von '+sts.length+'</span></div>';
     sts.forEach(function(st,k){
       var d=stationDone(st),cur=st===nx,ex=isExercise(st[1]),last=k===sts.length-1;
       o+='<div class="strow'+(cur?' cur':'')+(d?' done':'')+'" data-act="tab" data-v="'+st[1]+'"><div class="stcol"><span class="stnum">'+(d?'✓':(PATH.indexOf(st)+1))+'</span>'+(last?'':'<span class="stline"></span>')+'</div>';
