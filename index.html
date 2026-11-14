@@ -155,7 +155,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.64';
+var VERSION='1.65';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1118,6 +1118,9 @@ function viewTheoryNotes(){
     T('In Noten und Akkordsymbolen steht für -is das Kreuz ♯ (wie eine Raute #): Cis = C♯, Dis = D♯, Fis = F♯, Gis = G♯, Ais = A♯. Für die erniedrigten Töne steht das ♭ (wie ein kleines b): Des = D♭, Es = E♭, Ges = G♭, As = A♭, B = B♭.',
       'Im Deutschen heißen die Töne mit ♯ Cis, Dis, Fis, Gis und Ais, die Töne mit ♭ heißen Des, Es, Ges, As und B.'),
     T('H ist das internationale B, und B ist das internationale Bb.','Im Deutschen heißt das B hier H, und das B♭ heißt B.')],pianoSvg([0,2,4,5,7,9,11]))+
+  theoryCard('Warum ein Klavier?',[
+    'Auf dem Klavier liegt jeder Ton genau einmal und alle Töne stehen in einer Reihe. Weiße und schwarze Tasten zeigen sofort, was Stammton und was Zwischenton ist und wo nur ein Halbton dazwischenliegt.',
+    'Auf der '+I.name+' sehen alle Bünde gleich aus, und derselbe Ton liegt an mehreren Stellen. Das Muster ist dort schwerer zu erkennen. Deshalb erklärt die Theorie den Aufbau am Klavier, und die Karte zeigt dir danach, wo die Töne auf deinem Instrument liegen.'])+
   theoryCard('Halbton und Ganzton',[
     'Ein Bund ist ein Halbton, zwei Bünde sind ein Ganzton.',
     'Zwischen E und F sowie zwischen '+HN+' und C liegt nur ein Halbton, alle anderen Stammtöne haben einen Zwischenton dazwischen.'],chromSvg(false))+
@@ -1149,7 +1152,7 @@ function viewTheoryScales(){
     'Eine Tonleiter ordnet Töne von einem Grundton aus nach einem festen Muster aus Ganz- und Halbtonschritten. Die Töne heißen Stufen und werden von 1 bis 7 gezählt. Grundton plus Tonleiter-Art ergibt die Tonart, zum Beispiel C-Dur.'],stackSvg(cmaj.map(function(n){return NOTES[n];}),[0]).replace(/<path[^>]*\/>/g,'').replace(/>Terz</g,'><'))+
   theoryCard('Dur',[
     'Muster: Ganz-Ganz-Halb-Ganz-Ganz-Ganz-Halb.',
-    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.'],stepsSvg([2,2,1,2,2,2,1],cmaj.map(noteName).concat(['C']).map(function(n){return n.split('/')[0];}),0)+pianoSvg(cmaj))+
+    'C-Dur: '+noteList(cmaj)+' C. Auf den weißen Tasten ist das die Tonleiter ohne Zwischentöne.','<span class="hint">Die Klaviatur zeigt nur den Aufbau. Warum ein Klavier und nicht das Griffbrett, steht unter Töne → Theorie.</span>'],stepsSvg([2,2,1,2,2,2,1],cmaj.map(noteName).concat(['C']).map(function(n){return n.split('/')[0];}),0)+pianoSvg(cmaj))+
   theoryCard('Moll (natürlich)',[
     'Muster: Ganz-Halb-Ganz-Ganz-Halb-Ganz-Ganz.',
     'A-Moll: '+noteList(amin)+' A. Es gibt auch harmonisch und melodisch Moll. Die App nutzt natürlich Moll.'],stepsSvg([2,1,2,2,1,2,2],amin.map(noteName).concat(['A']).map(function(n){return n.split('/')[0];}),9)+pianoSvg(amin))+

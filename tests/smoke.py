@@ -440,7 +440,7 @@ try:
         # Theorie als eigener Teil je Schritt
         go(pg, 'tnotes')
         tx = pg.inner_text('#root')
-        check('Theorie Töne', all(k in tx for k in ['Stammtöne und Zwischentöne', 'Halbton und Ganzton', 'Oktave', 'Leere Saiten: G C E A']) and pg.locator('.theory').count() == 4, tx[:80])
+        check('Theorie Töne', all(k in tx for k in ['Stammtöne und Zwischentöne', 'Halbton und Ganzton', 'Oktave', 'Leere Saiten: G C E A']) and pg.locator('.theory').count() == 5 and 'Warum ein Klavier?' in tx and 'Auf der Ukulele sehen alle Bünde gleich aus' in tx, tx[:80])
         go(pg, 'tscales')
         tx = pg.inner_text('#root')
         check('Theorie: Die 5 Positionen mit fünf Griffbildern', 'Die 5 Positionen' in tx and pg.locator('.theory .fb-svg').count() == 5 and 'tiefsten Saite (C-Saite)' in tx)
