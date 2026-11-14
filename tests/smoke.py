@@ -402,8 +402,6 @@ try:
         r2 = pg.evaluate(REP + "('sfind',function(){state.pRoot=-1;state.pType=-1},function(q){return q.pos})")
         r3 = pg.evaluate(REP + "('sname',function(){state.pRoot=0;state.pType=0},function(q){return q.k})")
         r4 = pg.evaluate(REP + "('splay',function(){state.pRoot=-1;state.pType=-1},function(q){return q.root+':'+q.t})")
-        r5 = pg.evaluate("(function(){state.pRoot=-1;state.pType=-1;state.mode='sname';var all=[],mx=0;for(var i=0;i<300;i++){newForMode();var q=state.q;all.push(scaleNotes(q.root,SCALES[q.t])[q.k-1]);}for(var i=0;i+10<=all.length;i++){var c={};all.slice(i,i+10).forEach(function(x){c[x]=(c[x]||0)+1;});for(var k in c)if(c[k]>mx)mx=c[k];}return mx;})()")
-        check('Tonleitern erkennen: derselbe Ton höchstens 2-mal in 10 Aufgaben', r5 <= 2, str(r5))
         pg.evaluate("state.pRoot=-1;state.pType=-1;state.q=null;state.mode='path';render()")
         check('Tonleiter-Übungen: nie dieselbe Saite/Aufgabe direkt hintereinander', r1 == 0 and r2 == 0 and r3 == 0 and r4 == 0, str((r1, r2, r3, r4)))
         # Runden und Bewertung
@@ -485,9 +483,15 @@ try:
         check('Tonleiter-Auswahl bleibt nach Neuladen', (pg.reload() or True) and pg.evaluate("state.pRoot===9&&state.pType===1"))
         go(pg, 'sname')
         pg.select_option('select[data-act="proot"]', '-1'); pg.select_option('select[data-act="ptype"]', '-1')
-        pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,picked:null,done:false,ok:false,id:41};render()")   # 3. Ton von C-Dur = E
-        pg.click('.ans .btn:text-is("E")')
-        check('Tonleiter erkennen: 3. Ton von C-Dur', pg.evaluate("state.q.ok===true"))
+        pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,pos:0,s:2,f:0,picked:null,done:false,ok:false,id:41};render()")   # E-Saite leer = E = 3. Ton von C-Dur
+        check('Tonleiter erkennen: markierter Ton mit Fragezeichen, Grundton beschriftet', pg.locator('.dot.q').count() == 1 and pg.locator('.ans .btn').count() == 7 and pg.locator('.dot.nat').count() == 2 and 'wievielte Ton' in pg.inner_text('#root'))
+        pg.click('.ans .btn:text-is("3")')
+        check('Tonleiter erkennen: E ist der 3. Ton von C-Dur', pg.evaluate("state.q.ok===true") and 'E ist der 3. Ton' in pg.inner_text('#root'))
+        pg.evaluate("state.q={kind:'name',root:0,t:0,k:3,pos:0,s:2,f:0,picked:null,done:false,ok:false,id:42};render()")
+        pg.click('.ans .btn:text-is("5")')
+        check('Tonleiter erkennen: falsche Stufe', pg.evaluate("state.q.done&&!state.q.ok&&state.q.picked===5"))
+        okq = pg.evaluate("(function(){state.mode='sname';var bad=0;for(var i=0;i<200;i++){newForMode();var q=state.q;if(noteAt(q.s,q.f)!==scaleNotes(q.root,SCALES[q.t])[q.k-1]||q.k<2)bad++;}return bad;})()")
+        check('Tonleiter erkennen: markierter Ton passt immer zur Stufe', okq == 0, str(okq))
         set_inst(pg, 'gtr')
         go(pg, 'cfind')
         pg.evaluate("state.q={i:0,fing:[0,0,0,0,0,0],done:false,ok:false,picked:null,id:51};render()")     # C-Dur: x32010

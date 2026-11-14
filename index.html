@@ -146,7 +146,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.62';
+var VERSION='1.63';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -629,7 +629,6 @@ function posOptions(cur,first){
 // Zieht reihum ohne Wiederholung: Jede Möglichkeit kommt einmal dran, erst dann wird neu gemischt.
 // Auch über die Mischgrenze hinweg kommt nie zweimal direkt hintereinander dasselbe (außer es gibt nur eine Möglichkeit).
 var bags={};
-var ansSeen={},ansClock=0; // wann welcher Ton zuletzt die Antwort bei "Tonleitern erkennen" war
 function bagPick(name,list){
   var sig=list.join(','),b=bags[name];
   if(!b||b.sig!==sig||!b.left.length){
@@ -655,17 +654,14 @@ function newScaleQ(kind){
     q.found=[];q.miss=0;q.bad=null;
   }
   if(kind==='name'){
-    // Der gesuchte Ton (die Antwort) soll wechseln: alle möglichen Antworten kommen reihum dran,
-    // dazu wird eine passende Kombination aus Grundton und Stufe gewählt.
-    var rs=state.pRoot>=0?[state.pRoot]:roots,combos=[],answers=[];
-    rs.forEach(function(r){var sn=scaleNotes(r,SCALES[t]);for(var k=2;k<=sn.length;k++){combos.push({r:r,k:k,a:sn[k-1]});if(answers.indexOf(sn[k-1])<0)answers.push(sn[k-1]);}});
-    // zufällig einen Ton aus der Hälfte nehmen, die am längsten nicht die Antwort war; das gilt auch, wenn die Tonleiter-Art wechselt
-    answers.sort(function(x,y){return (ansSeen[x]||0)-(ansSeen[y]||0)||Math.random()-0.5;});
-    var cand=answers.slice(0,Math.max(1,Math.ceil(answers.length/2)));
-    var ans=cand[Math.floor(Math.random()*cand.length)],fit=combos.filter(function(c){return c.a===ans;});
-    ansSeen[ans]=++ansClock;
-    var pickc=fit[bagPick('sname-combo-'+t+'-'+ans,fit.map(function(c,i){return i;}))];
-    q.root=pickc.r;q.k=pickc.k;q.picked=null;
+    // Ein Ton in einer Position ist markiert, gefragt ist seine Stufe (der wievielte Ton der Tonleiter).
+    // Stufe, Position und Griffstelle kommen jeweils reihum dran; der Grundton (Stufe 1) ist als Orientierung beschriftet.
+    var ks=[];for(var k=2;k<=set.length;k++)ks.push(k);
+    q.k=bagPick('sname-k-'+set.length,ks);
+    q.pos=bagPick('sname-pos',[0,1,2,3,4]);
+    var cells=scaleBox(root,SCALES[t],q.pos).filter(function(d){return noteAt(d.s,d.f)===set[q.k-1];});
+    var cell=cells[bagPick('sname-cell-'+root+'-'+t+'-'+q.pos+'-'+q.k,cells.map(function(c,i){return i;}))];
+    q.s=cell.s;q.f=cell.f;q.picked=null;
   }
   if(kind==='play'){
     // Bereich = Positionen 1 bis Stufe zusammen. Gespielt wird vom Startton (tiefste Stelle im Bereich) hinauf zum höchsten Ton,
@@ -1218,7 +1214,7 @@ function voiceHeard(text){
   if(!q||VOICE_MODES.indexOf(m)<0){render();return;}
   if(q.done){if(r.next)next();else render();return;}
   if(m==='name')el=pc===null?null:voiceBtn('[data-act="ans"][data-n="'+pc+'"]');
-  else if(m==='sname')el=pc===null?null:voiceBtn('[data-act="sans"][data-n="'+pc+'"]');
+  else if(m==='sname')el=r.num?voiceBtn('[data-act="sans"][data-n="'+r.num+'"]'):null;
   else if(m==='cname'){
     var qual=r.qual===null?(r.num===7?'7':''):r.qual,k=pc===null?-1:chordIndexOf(pc,qual);
     if(k>=0)el=voiceBtn('[data-act="cans"][data-v="'+k+'"]');
@@ -1245,11 +1241,11 @@ var VOTHER=['dur','moll','vermindert','sieben','eins','zwei','drei','vier','fün
 // dann kann ein gesprochenes E auch nicht als B verstanden werden.
 function voiceWords(){
   var pcs={},q=state.q,cs=INSTR[state.inst].chords;
-  [].forEach.call(document.querySelectorAll('#root [data-act="ans"],#root [data-act="sans"],#root [data-act="bsel"]'),function(el){pcs[+el.getAttribute('data-n')]=1;});
+  [].forEach.call(document.querySelectorAll('#root [data-act="ans"],#root [data-act="bsel"]'),function(el){pcs[+el.getAttribute('data-n')]=1;});
   [].forEach.call(document.querySelectorAll('#root [data-act="cans"]'),function(el){pcs[cs[+el.getAttribute('data-v')].r]=1;});
   if(state.mode==='cstep'&&q&&q.form===1)for(var i=0;i<7;i++)pcs[triadAt(q.root,q.t,i).r]=1;
   // Zusatzwörter nur dort, wo sie eine Antwort sein können: je weniger Wörter, desto weniger Verwechslungen
-  var m=state.mode,other=m==='cstep'?VOTHER:m==='cname'?['dur','moll','vermindert','sieben','weiter','[unk]']:m==='cbuild'?['weiter','prüfen','[unk]']:['weiter','[unk]'];
+  var m=state.mode,other=m==='cstep'?VOTHER:m==='sname'?['eins','zwei','drei','vier','fünf','sechs','sieben','weiter','[unk]']:m==='cname'?['dur','moll','vermindert','sieben','weiter','[unk]']:m==='cbuild'?['weiter','prüfen','[unk]']:['weiter','[unk]'];
   var notes=VNOTEWORDS.filter(function(w){return pcs[w==='b'?(INTL?11:10):VNOTE[w]];});
   // E und B klingen fast gleich ("eh"/"beh") und E wurde oft als B verstanden: E mehrfach nennen, das macht es für die Erkennung wahrscheinlicher
   if(notes.indexOf('e')>=0&&notes.indexOf('b')>=0)notes.push('e','e');
@@ -1329,7 +1325,7 @@ function voiceStop(){
 }
 function voiceBar(){
   if(!window.WebAssembly||!navigator.mediaDevices)return '<p class="hint" style="margin:0 0 12px">Antwort sprechen: Dieser Browser unterstützt das nicht.</p>';
-  var tip={name:'Sag den Tonnamen, zum Beispiel „Fis“.',sname:'Sag den Tonnamen, zum Beispiel „Fis“.',cname:'Sag zum Beispiel „C Dur“, „A Moll“, „G sieben“ oder „'+HN+' vermindert“.',
+  var tip={name:'Sag den Tonnamen, zum Beispiel „Fis“.',sname:'Sag die Stufe als Zahl, zum Beispiel „drei“.',cname:'Sag zum Beispiel „C Dur“, „A Moll“, „G sieben“ oder „'+HN+' vermindert“.',
     cstep:'Sag die Stufe als Zahl („vier“) oder den Akkord („D Moll“).',cbuild:'Sag die drei Töne nacheinander, beim dritten wird geprüft.'}[state.mode];
   var o='<div class="ctl"><button class="btn'+(voice.on?' pri':'')+'" data-act="voice">Antwort sprechen: '+(voice.on?'an':'aus')+'</button></div>';
   if(voice.err)o+='<div class="card"><p class="fb bad" style="margin:0">'+voice.err+'</p><p style="margin:10px 0 0"><button class="btn pri" data-act="voice">'+(voice.err.indexOf('Mikrofon')>=0?'Mikrofon erneut anfragen':'Erneut versuchen')+'</button></p></div>';
@@ -1343,7 +1339,7 @@ function voiceBar(){
 // Ein Schritt ist geschafft, wenn jede seiner Übungen mindestens PASS_STARS Sterne hat.
 var ROUND_SEC=60,PASS_STARS=2,roundTimer=null;
 // richtige Antworten pro Minute für 1, 2 und 3 Sterne
-var RATING={find:[8,12,16],name:[12,17,23],sfind:[20,30,40],sname:[9,13,18],splay:[25,40,55],splay2:[25,40,55],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
+var RATING={find:[8,12,16],name:[12,17,23],sfind:[20,30,40],sname:[8,12,16],splay:[25,40,55],splay2:[25,40,55],cbuild:[4,6,9],cstep:[9,13,18],cfind:[3,5,7],cname:[8,12,16],cplay:[3,4,6]};
 function starsFor(mode,ok,total){
   if(!total||ok/total<0.8)return 0;
   var s=0;RATING[mode].forEach(function(x){if(ok>=x)s++;});return s;
@@ -1477,20 +1473,29 @@ function viewScaleFind(){
 }
 function viewScaleName(){
   if(!state.q)newScaleQ('name');
-  var q=state.q,sc=SCALES[q.t],set=scaleNotes(q.root,sc),right=set[q.k-1],fb='<p class="fb">&nbsp;</p>',btn='';
+  var q=state.q,sc=SCALES[q.t],set=scaleNotes(q.root,sc),fb='<p class="fb">&nbsp;</p>',btn='';
   if(q.done){
-    var all=set.map(function(n){return NAMES[n];}).join(' ');
-    if(q.ok)fb='<p class="fb ok">Richtig! '+scaleName(q.root,sc)+': '+all+'</p>';
-    else{fb='<p class="fb bad">Es ist '+NAMES[right]+'. '+scaleName(q.root,sc)+': '+all+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
+    var expl=NAMES[set[q.k-1]]+' ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+' ('+set.map(function(n){return NAMES[n];}).join(' ')+').';
+    if(q.ok)fb='<p class="fb ok">Richtig! '+expl+'</p>';
+    else{fb='<p class="fb bad">'+expl+'</p>';btn='<p style="margin:8px 0 0"><button class="btn pri" data-act="next">Weiter</button></p>';}
   }
-  var a='<div class="ans">';
-  for(var n=0;n<12;n++){
+  var a='<div class="ans" style="grid-template-columns:repeat('+set.length+',1fr)">';
+  for(var n=1;n<=set.length;n++){
     var cl='btn';
-    if(q.done){if(n===right)cl+=' ok';else if(!q.ok&&n===q.picked)cl+=' bad';}
-    a+='<button class="'+cl+'" data-act="sans" data-n="'+n+'">'+NAMES[n]+'</button>';
+    if(q.done){if(n===q.k)cl+=' ok';else if(!q.ok&&n===q.picked)cl+=' bad';}
+    a+='<button class="'+cl+'" data-act="sans" data-n="'+n+'">'+n+'</button>';
   }
-  a+='</div><p class="hint">'+T('Zwischentöne haben zwei Namen, zum Beispiel Cis/Des. H ist das internationale B, B ist das internationale Bb.','Zwischentöne haben zwei Namen, zum Beispiel C♯/D♭.')+'</p>';
-  return scalePick()+'<div class="card"><p class="prompt">Welcher Ton ist der '+q.k+'. Ton von '+scaleName(q.root,sc)+'?</p>'+fb+btn+'</div>'+a;
+  a+='</div>';
+  // Griffbrett: die Position mit allen Tönen (grau, ohne Namen), Grundton beschriftet, gesuchter Ton mit Fragezeichen
+  var box=scaleBox(q.root,sc,q.pos),lo=99,hi=0;
+  box.forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
+  var from=lo>0?lo-1:0;
+  var dots=box.map(function(d){
+    var nn=noteAt(d.s,d.f),tg=d.s===q.s&&d.f===q.f;
+    return {s:d.s,f:d.f,c:tg?(q.done?(q.ok?'ok':'bad'):'q'):(nn===q.root?'nat':'sharp'),l:tg?(q.done?NAMES[nn]:'?'):(nn===q.root?NAMES[nn]:'')};
+  });
+  return scalePick()+'<div class="card"><p class="prompt">Der wievielte Ton von '+scaleName(q.root,sc)+' ist der markierte Ton?</p>'+fb+btn+'</div>'+a+
+    '<p class="hint" style="margin:-4px 0 8px">Grün = Grundton (1. Ton) · grau = die anderen Töne der Position '+(q.pos+1)+'</p>'+fretboardSvg(dots,null,Math.max(4,hi-from),from);
 }
 function viewScalePlay(){
   if(!state.q)newScaleQ('play');
@@ -1669,7 +1674,7 @@ function handle(el){
   else if(act==='sans'){
     if(!q||q.done)return;
     var sc=SCALES[q.t],n=+el.getAttribute('data-n');
-    q.done=true;q.picked=n;q.ok=(n===scaleNotes(q.root,sc)[q.k-1]);
+    q.done=true;q.picked=n;q.ok=(n===q.k);
     record(sc.id,q.ok,'scales');render();
     if(q.ok)autoAdvance(q,'sname',900);
   }
