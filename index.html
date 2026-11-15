@@ -153,6 +153,9 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 .strow.done .stbody{color:var(--text)}.strow.done .stbody b{font-weight:600}
 .ststars{font-size:20px;letter-spacing:1px;color:var(--accent);white-space:nowrap}
 .stcheck{font-size:20px;font-weight:700;color:var(--accent)}
+.lvhead{display:flex;justify-content:space-between;align-items:center;margin:4px 0 8px 54px;padding:6px 10px;border-radius:10px;background:var(--sharp);color:var(--sharpText);font-size:14px}
+.lvhead.on{background:var(--accentbg);color:var(--accentText)}
+.lvname{font-weight:600}
 .stlabel{font-size:12px;font-weight:700;letter-spacing:.04em;color:var(--accentText);margin:0 0 2px}
 .strow .stage.next{margin:0 0 14px;border:1.5px solid var(--accent);border-left:1.5px solid var(--accent)}
 .strow .stage.next h2{font-size:19px;font-weight:600}
@@ -167,7 +170,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.76';
+var VERSION='1.77';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -232,6 +235,11 @@ var stats;
 function loadStats(){
   stats={total:0,correct:0,best:0,notes:{}};
   try{var raw=localStorage.getItem(statsKey());if(raw){var p=JSON.parse(raw);if(p&&p.notes)stats=p;}}catch(e){/* Speicher gesperrt oder Daten kaputt: mit leerer Statistik starten */}
+  // Bestwerte der Tonleiter-Übungen gelten jetzt je Stufe: alte Werte ohne Stufe gehören zu Position 1
+  if(stats.rounds)['sfind','sname','splay','splay2'].forEach(function(m){
+    if(stats.rounds[m]){if(!stats.rounds[m+'@1'])stats.rounds[m+'@1']=stats.rounds[m];delete stats.rounds[m];}
+  });
+  delete stats.levels;
   // Alte Akkordschlüssel mit # (C#m) heißen jetzt wie im Deutschen (Cism)
   if(stats.chords){
     var moved={};
@@ -242,7 +250,7 @@ function loadStats(){
 function save(){try{localStorage.setItem(statsKey(),JSON.stringify(stats));}catch(e){/* Speicher gesperrt oder voll: App läuft ohne Speichern weiter */}}
 
 // Zustand der App. Nur `stats` wird gespeichert (localStorage), alles andere gilt nur für die laufende Sitzung.
-var state={lv:{},mPos:0,fPos:-1,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
+var state={slv:0,mPos:0,awake:true,inst:'uke',settings:false,mode:'path',dSel:0,maxFret:5,sharps:false,sound:true,streak:0,q:null,last:null,resetArmed:false,
   gm:{},gx:{},seqId:0,lastKey:'',cSel:0,sRoot:0,sType:0,pRoot:-1,pType:-1,kRoot:-1,kType:0,moreOpen:false, // kRoot/kType: gewählte Tonart für Akkorde (kRoot -1 = alle Akkorde)
    // pRoot/pType: gewählte Übungs-Tonleiter, -1 = zufällig (pRoot -2 = zufällig aus allen 12 Grundtönen)
    // gm = zuletzt benutzte Unterseite je Gruppe, seqId bricht laufende Tonfolgen ab, lastKey = letzte Aufgabe
@@ -647,8 +655,22 @@ function boxBoard(root,sc,p,mark){
 // ----- Tonleiter spielen: zwei Übungen mit Stufen -----
 function isSP(m){return m==='splay'||m==='splay2';}
 // höchste freigeschaltete Stufe (1 bis 5) und die gerade gewählte
-function maxLevel(m){return Math.min(5,Math.max(1,(stats.levels&&stats.levels[m])||1));}
-function curLevel(m){var c=state.lv[m];return c>=1&&c<=maxLevel(m)?c:maxLevel(m);}
+// Die vier Tonleiter-Übungen teilen sich eine Stufe: erst alle mit Position 1, dann alle mit Position 1–2 und so weiter bis 1–5.
+var SCALE_EX=['sfind','sname','splay','splay2'];
+function isSE(m){return SCALE_EX.indexOf(m)>=0;}
+function maxLevel(){return Math.min(5,Math.max(1,stats.slevel||1));}
+function curLevel(){var c=state.slv;return c>=1&&c<=maxLevel()?c:maxLevel();}
+// Schlüssel für die beste Runde: Tonleiter-Übungen je Stufe getrennt (z. B. "sfind@2")
+function roundKey(m,level){return isSE(m)?m+'@'+(level||curLevel()):m;}
+// Auswahl der Stufe; höhere Stufen sind gesperrt, bis Finden und Erkennen auf der Stufe davor bestanden sind
+function levelSel(){
+  var mx=maxLevel(),lv=curLevel(),o='<div class="sel"><label>Stufe <select data-act="slevel">';
+  for(var l=1;l<=5;l++)o+='<option value="'+l+'"'+(l===lv?' selected':'')+(l>mx?' disabled':'')+'>'+levelName(l)+(l>mx?' (gesperrt)':'')+'</option>';
+  o+='</select></label></div>';
+  if(mx<5)o+='<p class="hint" style="margin:-6px 0 12px">'+levelName(mx+1)+' wird frei, sobald du bei „Finden“ und „Erkennen“ auf '+levelName(mx)+' je '+PASS_STARS+' Sterne hast.</p>';
+  if(state.levelUp)o+='<div class="card"><p class="fb ok" style="margin:0">'+levelName(state.levelUp)+' freigeschaltet!</p></div>';
+  return o;
+}
 function levelName(l){return l===1?'Position 1':'Position 1–'+l;}
 // alle Griffstellen der Positionen 1 bis level, ohne Doppelte
 function levelRegion(root,sc,level){
@@ -683,10 +705,10 @@ function newScaleQ(kind){
   var root=state.pRoot>=0?state.pRoot:bagPick('sroot-'+kind,roots),set=scaleNotes(root,SCALES[t]);
   var q={kind:kind,root:root,t:t,done:false,ok:false,id:Date.now()};
   if(kind==='find'){
-    // Gesucht sind alle Töne einer Position; die Positionen kommen reihum dran (oder die fest gewählte)
-    q.pos=state.fPos>=0?state.fPos:bagPick('sfind-pos',[0,1,2,3,4]);
+    // Gesucht sind alle Töne im Bereich der Stufe (Position 1 bis Stufe zusammen)
+    q.level=curLevel();
     // Bei hohem G zählen die (doppelten) Töne auf der G-Saite nicht: Die Saite bleibt leer und Tippen darauf wird ignoriert
-    q.targets=scaleBox(root,SCALES[t],q.pos).filter(function(d){return !dupCls(d.s);}).map(function(d){return d.s+':'+d.f;});
+    q.targets=levelRegion(root,SCALES[t],q.level).filter(function(d){return !dupCls(d.s);}).map(function(d){return d.s+':'+d.f;});
     q.found=[];q.miss=0;q.bad=null;
   }
   if(kind==='name'){
@@ -694,15 +716,15 @@ function newScaleQ(kind){
     // Stufe, Position und Griffstelle kommen jeweils reihum dran; der Grundton (Stufe 1) ist als Orientierung beschriftet.
     var ks=[];for(var k=2;k<=set.length;k++)ks.push(k);
     q.k=bagPick('sname-k-'+set.length,ks);
-    q.pos=bagPick('sname-pos',[0,1,2,3,4]);
-    var cells=scaleBox(root,SCALES[t],q.pos).filter(function(d){return noteAt(d.s,d.f)===set[q.k-1];});
-    var cell=cells[bagPick('sname-cell-'+root+'-'+t+'-'+q.pos+'-'+q.k,cells.map(function(c,i){return i;}))];
+    q.level=curLevel();
+    var cells=levelRegion(root,SCALES[t],q.level).filter(function(d){return noteAt(d.s,d.f)===set[q.k-1];});
+    var cell=cells[bagPick('sname-cell-'+root+'-'+t+'-'+q.level+'-'+q.k,cells.map(function(c,i){return i;}))];
     q.s=cell.s;q.f=cell.f;q.picked=null;
   }
   if(kind==='play'){
     // Bereich = Positionen 1 bis Stufe zusammen. Gespielt wird vom Startton (tiefste Stelle im Bereich) hinauf zum höchsten Ton,
     // hinunter zum tiefsten und zurück zum Startton. 'splay' startet beim Grundton, 'splay2' bei einem wechselnden Ton.
-    q.level=curLevel(state.mode);
+    q.level=curLevel();
     var reg=levelRegion(root,SCALES[t],q.level),ms=[];
     reg.forEach(function(d){var mm=STR[d.s].m+d.f;if(ms.indexOf(mm)<0)ms.push(mm);});
     ms.sort(function(x,y){return x-y;});
@@ -1430,13 +1452,13 @@ function starsFor(mode,ok,total){
   var s=0;RATING[mode].forEach(function(x){if(ok>=x)s++;});return s;
 }
 function starText(n){return '★★★'.slice(0,n)+'☆☆☆'.slice(0,3-n);}
-function bestRound(mode){return (stats.rounds&&stats.rounds[mode])||null;}
-function roundStars(mode){var b=bestRound(mode);return b?b.stars:0;}
+function bestRound(mode,level){return (stats.rounds&&stats.rounds[roundKey(mode,level)])||null;}
+function roundStars(mode,level){var b=bestRound(mode,level);return b?b.stars:0;}
 function cancelRound(){clearInterval(roundTimer);state.round=null;}
 function startRound(){
   cancelRound();state.roundResult=null;
   state.levelUp=null;
-  state.round={mode:state.mode,start:Date.now(),ok:0,total:0,level:isSP(state.mode)?curLevel(state.mode):0};
+  state.round={mode:state.mode,start:Date.now(),ok:0,total:0,level:isSE(state.mode)?curLevel():0};
   roundTimer=setInterval(roundTick,250);next();
   // Aufgabe nach oben holen: die laufende Runde blendet Einstellungen aus, die Rundenkarte bleibt oben stehen
   var rc=document.getElementById('rcard');if(rc&&rc.scrollIntoView)rc.scrollIntoView({block:'start'});
@@ -1445,12 +1467,13 @@ function finishRound(){
   var r=state.round;if(!r)return;
   var stars=starsFor(r.mode,r.ok,r.total);
   stats.rounds=stats.rounds||{};
-  var b=stats.rounds[r.mode];
-  if(!b||stars>b.stars||(stars===b.stars&&r.ok>b.ok))stats.rounds[r.mode]={stars:stars,ok:r.ok,total:r.total};
-  // Tonleiter spielen: Runde auf der höchsten offenen Stufe bestanden → nächste Stufe (eine Position mehr) freischalten
-  if(isSP(r.mode)&&stars>=PASS_STARS&&r.level===maxLevel(r.mode)&&r.level<5){
-    stats.levels=stats.levels||{};stats.levels[r.mode]=r.level+1;
-    state.lv[r.mode]=r.level+1;state.levelUp={mode:r.mode,level:r.level+1};state.q=null;
+  var rk=roundKey(r.mode,r.level),b=stats.rounds[rk];
+  if(!b||stars>b.stars||(stars===b.stars&&r.ok>b.ok))stats.rounds[rk]={stars:stars,ok:r.ok,total:r.total};
+  // Tonleitern: Sind Finden und Erkennen auf der höchsten offenen Stufe bestanden, wird die nächste Stufe frei.
+  // Die Stufe bleibt dabei stehen, damit auch die Spiel-Übungen dieser Stufe noch drankommen.
+  if(isSE(r.mode)){
+    state.slv=r.level;
+    if(r.level===maxLevel()&&r.level<5&&roundStars('sfind',r.level)>=PASS_STARS&&roundStars('sname',r.level)>=PASS_STARS){stats.slevel=r.level+1;state.levelUp=r.level+1;}
   }
   save();
   state.roundResult={mode:r.mode,ok:r.ok,total:r.total,stars:stars};
@@ -1476,7 +1499,7 @@ function roundBar(){
   if(res&&res.mode===m)o+='<p class="fb '+(res.stars>=PASS_STARS?'ok':'bad')+'" style="margin:8px 0 0">'+starText(res.stars)+' · '+res.ok+' richtig, '+(res.total-res.ok)+' falsch'+(res.stars>=PASS_STARS?' – Ziel erreicht!':' – Ziel: '+PASS_STARS+' Sterne')+'</p>';
   // nach bestandener Runde direkt zur nächsten Station des Lernwegs
   var gnx=nextStation();
-  if(res&&res.mode===m&&res.stars>=PASS_STARS&&gnx&&gnx[1]!==m)o+='<p style="margin:8px 0 0"><button class="btn pri" data-act="tab" data-v="'+gnx[1]+'">Weiter: '+stationName(gnx)+' ›</button></p>';
+  if(res&&res.mode===m&&res.stars>=PASS_STARS&&gnx&&!(gnx[1]===m&&(!gnx[4]||gnx[4]===curLevel())))o+='<p style="margin:8px 0 0"><button class="btn pri" '+stAttr(gnx)+'>Weiter: '+stationName(gnx)+' ›</button></p>';
   return o+'<p class="hint" style="margin:8px 0 0">★ ab '+th[0]+' · ★★ ab '+th[1]+' · ★★★ ab '+th[2]+' '+(isSP(m)?'richtig gespielte Töne':m==='sfind'?'richtig gefundene Töne':'richtige Antworten')+' pro Runde, mindestens 80 % richtig.</p></div>';
 }
 
@@ -1496,10 +1519,7 @@ var PATH=[
   [0,'name','Benenne den markierten Ton.'],
   [1,'tscales','Lies, wie Dur, Moll und die Pentatoniken aufgebaut sind und was die fünf Positionen sind.'],
   [1,'smap','Sieh dir die fünf Positionen einer Tonleiter auf dem Griffbrett an und höre sie an.'],
-  [1,'sfind','Tippe alle Töne einer Position an.'],
-  [1,'sname','Bestimme, der wievielte Ton der Tonleiter markiert ist.'],
-  [1,'splay','Spiele die Tonleiter ab dem Grundton auf deinem Instrument.',true],
-  [1,'splay2','Spiele die Tonleiter ab wechselnden Tönen auf deinem Instrument.',true],
+  'SCALE_LEVELS',
   [2,'tchords','Lies, wie Dreiklänge und Stufenakkorde aus der Tonleiter entstehen.'],
   [2,'cmap','Sieh dir die Griffe der Akkorde an und höre sie an.'],
   [2,'cdeg','Sieh dir an, welche Akkorde zu einer Tonart gehören.'],
@@ -1509,13 +1529,22 @@ var PATH=[
   [2,'cname','Benenne den gezeigten Griff.'],
   [2,'cplay','Spiele den Akkord auf deinem Instrument.',true]
 ];
+// Tonleiter-Übungen: fünf Stufen, jede mit allen vier Übungen (5. Eintrag = Stufe)
+(function(){
+  var at=PATH.indexOf('SCALE_LEVELS'),add=[];
+  for(var l=1;l<=5;l++)add.push([1,'sfind','Tippe alle Töne im Bereich an.',false,l],[1,'sname','Bestimme, der wievielte Ton der Tonleiter markiert ist.',false,l],
+    [1,'splay','Spiele die Tonleiter ab dem Grundton auf deinem Instrument.',true,l],[1,'splay2','Spiele die Tonleiter ab wechselnden Tönen auf deinem Instrument.',true,l]);
+  PATH.splice.apply(PATH,[at,1].concat(add));
+})();
 function modeLabel(id){
   for(var i=0;i<GROUPS.length;i++)for(var j=0;j<GROUPS[i].modes.length;j++)if(GROUPS[i].modes[j][0]===id)return GROUPS[i].modes[j][1];
   return id;
 }
 function isExercise(id){return !!RATING[id];}
-function stationDone(st){return isExercise(st[1])?roundStars(st[1])>=PASS_STARS:!!(stats.seen&&stats.seen[st[1]]);}
-function stationName(st){return 'Schritt '+(st[0]+1)+' · '+modeLabel(st[1]);}
+function stationDone(st){return isExercise(st[1])?roundStars(st[1],st[4])>=PASS_STARS:!!(stats.seen&&stats.seen[st[1]]);}
+function stationName(st){return 'Schritt '+(st[0]+1)+' · '+modeLabel(st[1])+(st[4]?' · '+levelName(st[4]):'');}
+// data-Attribute, mit denen ein Knopf eine Station öffnet (Seite und, bei Tonleiter-Übungen, die Stufe)
+function stAttr(st){return 'data-act="tab" data-v="'+st[1]+'"'+(st[4]?' data-l="'+st[4]+'"':'');}
 // die erste noch offene Station (null = alles erledigt)
 function nextStation(){for(var i=0;i<PATH.length;i++)if(!stationDone(PATH[i]))return PATH[i];return null;}
 function stepDone(s){return PATH.every(function(st){return st[0]!==s||st[3]||stationDone(st);});}
@@ -1526,10 +1555,10 @@ function markSeen(mode){
 }
 // Knopf zur nächsten Station; erscheint auf den Seiten des Lernwegs, sobald die aktuelle Station erledigt ist
 function guideBar(){
-  var cur=PATH.filter(function(st){return st[1]===state.mode;})[0],nx=nextStation();
+  var cur=PATH.filter(function(st){return st[1]===state.mode&&(!st[4]||st[4]===curLevel());})[0],nx=nextStation();
   if(!cur||!stationDone(cur)||state.round)return '';
   if(!nx)return '<div class="card guide"><p class="fb ok" style="margin:0">Du hast alle Stationen des Lernwegs geschafft!</p></div>';
-  return '<div class="card guide"><p class="hint" style="margin:0 0 8px">Diese Station ist erledigt. Weiter im Lernweg:</p><button class="btn pri" data-act="tab" data-v="'+nx[1]+'">'+stationName(nx)+' ›</button></div>';
+  return '<div class="card guide"><p class="hint" style="margin:0 0 8px">Diese Station ist erledigt. Weiter im Lernweg:</p><button class="btn pri" '+stAttr(nx)+'>'+stationName(nx)+' ›</button></div>';
 }
 function viewPath(){
   // Lernweg als Pfad: Stationen hängen untereinander an einer Linie, die nächste Station ist als Karte mit Knopf eingebettet
@@ -1538,17 +1567,25 @@ function viewPath(){
   STEPS.forEach(function(s,i){
     var sts=PATH.filter(function(st){return st[0]===i;}),need=sts.filter(function(st){return !st[3];}),n=need.filter(stationDone).length,done=stepDone(i);
     o+='<div class="stephead"><span class="steptag">Schritt '+(i+1)+'</span><span class="steptitle">'+s.title+'</span><span class="stepline"></span><span class="hint">'+(done?'Geschafft ✓ · ':'')+sts.filter(stationDone).length+' von '+sts.length+'</span></div>';
+    // Tonleitern: Die Übungen sind nach Stufen gruppiert. Ausgeklappt ist nur die Stufe, in der es weitergeht.
+    var focus=nx&&nx[0]===i&&nx[4]?nx[4]:maxLevel(),shownL=0;
     sts.forEach(function(st,k){
-      var d=stationDone(st),cur=st===nx,ex=isExercise(st[1]),last=k===sts.length-1;
-      o+='<div class="strow'+(cur?' cur':'')+(d?' done':'')+'" data-act="tab" data-v="'+st[1]+'"><div class="stcol"><span class="stnum">'+(d?'✓':(PATH.indexOf(st)+1))+'</span>'+(last?'':'<span class="stline"></span>')+'</div>';
+      var d=stationDone(st),cur=st===nx,ex=isExercise(st[1]),last=k===sts.length-1,L=st[4];
+      if(L&&L!==shownL){
+        shownL=L;
+        var grp=sts.filter(function(x){return x[4]===L;}),gd=grp.filter(stationDone).length,locked=L>maxLevel();
+        o+='<div class="lvhead'+(L===focus?' on':'')+'"><span class="lvname">'+levelName(L)+'</span><span class="hint">'+(locked?'gesperrt':gd+' von '+grp.length)+'</span></div>';
+      }
+      if(L&&L!==focus)return;
+      o+='<div class="strow'+(cur?' cur':'')+(d?' done':'')+'" '+stAttr(st)+'><div class="stcol"><span class="stnum">'+(d?'✓':(PATH.indexOf(st)+1))+'</span>'+(last||(L&&k+1<sts.length&&sts[k+1][4]!==L)?'':'<span class="stline"></span>')+'</div>';
       if(cur){
-        o+='<div class="card stage next"><p class="stlabel">Als Nächstes · '+kind(st)+'</p><h2>'+modeLabel(st[1])+'</h2><p class="hint" style="margin:4px 0 0">'+st[2]+
+        o+='<div class="card stage next"><p class="stlabel">Als Nächstes · '+kind(st)+'</p><h2>'+modeLabel(st[1])+(L?' · '+levelName(L):'')+'</h2><p class="hint" style="margin:4px 0 0">'+st[2]+
           (ex?' Ziel: '+PASS_STARS+' Sterne in einer 60-Sekunden-Runde.':'')+(st[3]?' Dafür brauchst du das Mikrofon.':'')+'</p>'+
-          (ex?'<p class="ststars" style="margin:6px 0 0">'+starText(roundStars(st[1]))+'</p>':'')+
-          '<button class="btn pri" data-act="tab" data-v="'+st[1]+'" style="margin-top:10px;width:100%">'+(st===PATH[0]?'Los geht’s':'Weiter')+' ›</button></div>';
+          (ex?'<p class="ststars" style="margin:6px 0 0">'+starText(roundStars(st[1],L))+'</p>':'')+
+          '<button class="btn pri" '+stAttr(st)+' style="margin-top:10px;width:100%">'+(st===PATH[0]?'Los geht’s':'Weiter')+' ›</button></div>';
       }else{
         o+='<div class="stbody"><span><b>'+modeLabel(st[1])+'</b> <span class="hint">· '+kind(st)+(st[3]?' · Mikrofon':'')+'</span></span>'+
-          (ex?'<span class="ststars">'+starText(roundStars(st[1]))+'</span>':(d?'<span class="stcheck">✓</span>':''))+'</div>';
+          (ex?'<span class="ststars">'+starText(roundStars(st[1],L))+'</span>':(d?'<span class="stcheck">✓</span>':''))+'</div>';
       }
       o+='</div>';
     });
@@ -1610,8 +1647,7 @@ function viewScaleFind(){
   }
   // Ausschnitt: die Position plus ein Bund Rand darüber und darunter
   var from=lo>1?lo-2:0,N=Math.max(5,hi+1-from);
-  var sel='<div class="sel"><label>Position <select data-act="fpos"><option value="-1"'+(state.fPos<0?' selected':'')+'>wechselnd</option>'+posOptions(state.fPos,'')+'</select></label></div>';
-  return scalePick()+sel+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' in Position '+(q.pos+1)+'</p>'+fb+btn+(reentrant()?'<p class="hint" style="margin:8px 0 0">Die G-Saite zählt nicht: Ihre Töne liegen auch auf den anderen Saiten.</p>':'')+'</div>'+fretboardSvg(dots,null,N,from);
+  return scalePick()+levelSel()+'<div class="card"><p class="prompt">Finde alle Töne von '+scaleName(q.root,sc)+' in '+levelName(q.level||1)+'</p>'+fb+btn+(reentrant()?'<p class="hint" style="margin:8px 0 0">Die G-Saite zählt nicht: Ihre Töne liegen auch auf den anderen Saiten.</p>':'')+'</div>'+fretboardSvg(dots,null,N,from);
 }
 function viewScaleName(){
   if(!state.q)newScaleQ('name');
@@ -1629,23 +1665,21 @@ function viewScaleName(){
   }
   a+='</div>';
   // Griffbrett: die Position mit allen Tönen (grau, ohne Namen), Grundton beschriftet, gesuchter Ton mit Fragezeichen
-  var box=scaleBox(q.root,sc,q.pos),lo=99,hi=0;
+  var box=levelRegion(q.root,sc,q.level||1),lo=99,hi=0;
   box.forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
   var from=lo>0?lo-1:0;
   var dots=box.map(function(d){
     var nn=noteAt(d.s,d.f),tg=d.s===q.s&&d.f===q.f;
     return {s:d.s,f:d.f,c:tg?(q.done?(q.ok?'ok':'bad'):'q'):(nn===q.root?'nat':'sharp')+dupCls(d.s),l:tg?(q.done?NAMES[nn]:'?'):(nn===q.root?NAMES[nn]:'')};
   });
-  return scalePick()+'<div class="card"><p class="prompt">Der wievielte Ton von '+scaleName(q.root,sc)+' ist der markierte Ton?</p>'+fb+btn+'</div>'+a+
-    '<p class="hint" style="margin:-4px 0 8px">Grün = Grundton (1. Ton) · grau = die anderen Töne der Position '+(q.pos+1)+'</p>'+fretboardSvg(dots,null,Math.max(4,hi-from),from);
+  return scalePick()+levelSel()+'<div class="card"><p class="prompt">Der wievielte Ton von '+scaleName(q.root,sc)+' ist der markierte Ton?</p>'+fb+btn+'</div>'+a+
+    '<p class="hint" style="margin:-4px 0 8px">Grün = Grundton (1. Ton) · grau = die anderen Töne von '+levelName(q.level||1)+'</p>'+fretboardSvg(dots,null,Math.max(4,hi-from),from);
 }
 function viewScalePlay(){
   if(!state.q)newScaleQ('play');
-  var q=state.q,sc=SCALES[q.t],mic=state.mic,fb='',btn='',live='',md=state.mode,mx=maxLevel(md),lv=curLevel(md);
+  var q=state.q,sc=SCALES[q.t],mic=state.mic,fb='',btn='',live='',md=state.mode;
   var title='Spiele '+scaleName(q.root,sc)+(q.start!==undefined&&q.start!==q.root?' ab '+NAMES[q.start]:'')+' auf und ab'+(q.level?' · '+levelName(q.level):'');
-  var opts='<div class="sel"><label>Stufe <select data-act="slevel">';
-  for(var l=1;l<=5;l++)opts+='<option value="'+l+'"'+(l===lv?' selected':'')+(l>mx?' disabled':'')+'>'+levelName(l)+(l>mx?' (gesperrt)':'')+'</option>';
-  opts+='</select></label></div>'+(mx<5?'<p class="hint" style="margin:-6px 0 12px">Mit '+PASS_STARS+' Sternen in einer Runde auf '+levelName(mx)+' schaltest du '+levelName(mx+1)+' frei.</p>':'');
+  var opts=levelSel();
   var board='',seq;
   if(q.mseq){
     // Griffbrett-Ausschnitt mit allen Positionen der Stufe; der nächste Ton ist lila
@@ -1670,8 +1704,7 @@ function viewScalePlay(){
   }else fb='<p class="hint" style="margin:6px 0 0">Starte das Mikrofon und spiele die Töne nacheinander: vom Startton hinauf zum höchsten Ton, hinunter zum tiefsten und zurück.</p>';
   var m='<div class="ctl"><button class="btn'+(mic.on?' pri':'')+'" data-act="mic">Mit Instrument spielen: '+(mic.on?'an':'aus')+'</button></div>';
   if(mic.err)m+=micErrCard();
-  var up=state.levelUp&&state.levelUp.mode===md?'<div class="card"><p class="fb ok" style="margin:0">'+levelName(state.levelUp.level)+' freigeschaltet!</p></div>':'';
-  return m+scalePick()+opts+up+score()+'<div class="card"><p class="prompt">'+title+'</p>'+seq+(live||fb)+(live?'':btn)+'</div>'+board;
+  return m+scalePick()+opts+score()+'<div class="card"><p class="prompt">'+title+'</p>'+seq+(live||fb)+(live?'':btn)+'</div>'+board;
 }
 
 // ----- Seitenaufbau: Gruppen (obere Leiste) mit Unterseiten -----
@@ -1745,6 +1778,8 @@ function handle(el){
   if(act==='tab'||act==='grp'){
     if(state.mic.on)stopMic();
     var mode=act==='tab'?v:(state.gm[v]||GROUPS.filter(function(x){return x.id===v;})[0].modes[0][0]); // Gruppe: zuletzt benutzte Unterseite
+    if(el.getAttribute('data-l'))state.slv=+el.getAttribute('data-l'); // Station des Lernwegs mit Stufe
+    state.levelUp=null;
     state.mode=mode;state.settings=false;state.gm[groupOf(mode).id]=mode;
     if(groupOf(mode).modes.some(function(m){return m[0]===mode&&m[2];}))state.gx[groupOf(mode).id]=mode; // zuletzt benutzte Übung der Gruppe
     state.q=null;state.resetArmed=false;render();
@@ -1756,9 +1791,8 @@ function handle(el){
     PATH.forEach(function(st){
       if(st[0]!==+v)return;
       if(stats.seen)delete stats.seen[st[1]];
-      if(stats.rounds)delete stats.rounds[st[1]];
-      if(stats.levels)delete stats.levels[st[1]];
-      delete state.lv[st[1]];
+      if(stats.rounds)delete stats.rounds[roundKey(st[1],st[4])];
+      if(st[4]){delete stats.slevel;state.slv=0;}
     });
     state.roundResult=null;state.levelUp=null;save();render();
   }
@@ -1918,7 +1952,7 @@ root.addEventListener('click',function(e){
   var el=e.target.closest('[data-act]');
   if(!el)return;
   var a=el.getAttribute('data-act');
-  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='slevel'||a==='fpos')return; // diese laufen über das change-Ereignis
+  if(a==='range'||a==='sharps'||a==='sound'||a==='awake'||a==='sroot'||a==='stype'||a==='proot'||a==='ptype'||a==='kroot'||a==='ktype'||a==='slevel')return; // diese laufen über das change-Ereignis
   handle(el);
 });
 root.addEventListener('change',function(e){
@@ -1929,8 +1963,7 @@ root.addEventListener('change',function(e){
   else if(a==='sharps'){state.sharps=el.checked;state.q=null;state.last=null;render();}
   else if(a==='awake'){state.awake=el.checked;try{localStorage.setItem('griffbrett-awake',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}keepAwake();render();}
   else if(a==='sound'){state.sound=el.checked;try{localStorage.setItem('griffbrett-sound',el.checked?'1':'0');}catch(e){/* Speicher gesperrt: gilt nur bis zum Neuladen */}}
-  else if(a==='slevel'){state.lv[state.mode]=+el.value;state.q=null;cancelRound();state.roundResult=null;render();}
-  else if(a==='fpos'){state.fPos=+el.value;state.q=null;render();}
+  else if(a==='slevel'){state.slv=+el.value;state.levelUp=null;state.q=null;cancelRound();state.roundResult=null;render();}
   else if(a==='sroot'){state.sRoot=+el.value;render();}
   else if(a==='stype'){state.sType=+el.value;render();}
   else if(a==='kroot'){state.kRoot=+el.value;state.q=null;savePick();render();}
