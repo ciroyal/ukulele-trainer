@@ -161,6 +161,10 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 .strow .stage.next h2{font-size:19px;font-weight:600}
 .guide{margin-top:12px}
 .dot.dup{opacity:.4}
+.btn .sw{display:inline-block;width:9px;height:9px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.posgrid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:10px}.pcard{padding:8px;margin:0}
+.phead{display:flex;align-items:center;gap:6px;margin-bottom:2px}.phead .hint{margin:0}
+.pnum{width:22px;height:22px;border-radius:50%;color:#fff;font-weight:700;display:flex;align-items:center;justify-content:center}
 </style>
 </head>
 <body>
@@ -170,7 +174,7 @@ label.ctl{flex-wrap:nowrap;gap:10px}
 // H ist das internationale B, B ist das internationale Bb. NOTES = kurzer Name mit -is (für Akkordsymbole und als Schlüssel),
 // FLATS = erniedrigter Name, NAMES = beide Namen für die Anzeige von Tönen.
 // Versionsnummer (wird bei jeder Änderung um 0.01 hochgezählt, damit man in den Einstellungen sieht, ob die neue Version geladen ist)
-var VERSION='1.77';
+var VERSION='1.78';
 // Tonnamen: 'de' (H, Cis/Des) oder 'int' (B, C♯/D♭); die Wahl steht in den Einstellungen und wird beim Neuladen angewendet
 var NAMING='de';try{NAMING=localStorage.getItem('griffbrett-naming')==='int'?'int':'de';}catch(e){/* Speicher gesperrt: deutsch */}
 var INTL=NAMING==='int';
@@ -1611,21 +1615,25 @@ function scalePick(){
   SCALES.forEach(function(s,i){o+='<option value="'+i+'"'+(state.pType===i?' selected':'')+'>'+s.label+'</option>';});
   return o+'</select></label></div>';
 }
+var PCOL=['#e8743b','#e0b020','#4aa56a','#3f8fd6','#9b6bd1'];
 function viewScaleMap(){
   var sc=SCALES[state.sType],root=state.sRoot,set=scaleNotes(root,sc),dots=[],pos=state.mPos;
   var mark=function(n){return n===root?'open':'nat';};
   // Positionen als Knöpfe: 1 bis 5 zeigen je ein Griffbild, "Alle" das ganze Griffbrett bis zum 12. Bund
   var sel='<p class="hint" style="margin:0 0 6px">Position</p><div class="chips" style="grid-template-columns:repeat(6,1fr)">';
-  [0,1,2,3,4,-1].forEach(function(p){sel+='<button class="btn'+(pos===p?' on':'')+'" data-act="mposb" data-v="'+p+'">'+(p<0?'Alle':p+1)+'</button>';});
+  [0,1,2,3,4,-1].forEach(function(p){sel+='<button class="btn'+(pos===p?' on':'')+'" data-act="mposb" data-v="'+p+'">'+(p<0?'Alle':'<span class="sw" style="background:'+PCOL[p]+'"></span>'+(p+1))+'</button>';});
   sel+='</div>';
   var o=scaleSelects()+sel;
   o+='<div class="card">'+titleRow(scaleName(root,sc),'splayall',pos<0?'Tonleiter anhören':'Position anhören')+'<p class="hint" style="margin:4px 0 0">Töne: '+set.map(function(n){return NAMES[n];}).join(' ')+' · lila = Grundton'+dupHint()+'</p></div>';
   if(pos>=0)return o+boxBoard(root,sc,pos,mark);
-  for(var s=0;s<STR.length;s++)for(var f=0;f<=12;f++){
-    var n=noteAt(s,f);
-    if(set.indexOf(n)>=0)dots.push({s:s,f:f,c:mark(n)+dupCls(s),l:NAMES[n]});
+  // "Alle": fünf kleine Griffbilder nebeneinander, je Position eine Karte mit Nummer und Bundbereich
+  o+='<div class="posgrid">';
+  for(var q=0;q<5;q++){
+    var lo=99,hi=0;
+    scaleBox(root,sc,q).forEach(function(d){if(d.f<lo)lo=d.f;if(d.f>hi)hi=d.f;});
+    o+='<div class="card pcard"><div class="phead"><span class="pnum" style="background:'+PCOL[q]+'">'+(q+1)+'</span><span class="hint">Bund '+lo+'–'+hi+'</span></div>'+boxBoard(root,sc,q,mark)+'</div>';
   }
-  return o+fretboardSvg(dots,null,12);
+  return o+'</div>';
 }
 function viewScaleFind(){
   if(!state.q)newScaleQ('find');
